@@ -28,7 +28,7 @@ namespace GoogleDrive
                 //LBmain.Text += $"{text}\r\n";
                 //await this.ScrollToAsync(LBmain, ScrollToPosition.End, true);
                 this.Text += $"{text}\r\n";
-                if (this.Text.Length > 3000) this.Text = this.Text.Substring(this.Text.Length - 3000);
+                if (this.Text.Length > 10000) this.Text = this.Text.Substring(this.Text.Length - 10000);
                 this.Focus();
                 await Task.Delay(0);
             }

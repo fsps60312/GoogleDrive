@@ -123,7 +123,6 @@ namespace GoogleDrive
                     }
                 }
             }
-            const int chunkSize = 262144 * 2;
             long byteReceivedSoFar;
             private async Task<bool> DoResumableUploadAsync(long startByte, byte[] dataBytes)
             {
@@ -248,16 +247,20 @@ namespace GoogleDrive
                 try
                 {
                     fileStream.Position = position;
+                    long chunkSize = 262144 * 2;
                     for (; position != fileStream.Length + 1;)
                     {
                         var bufferSize = Math.Min(chunkSize, fileStream.Length - position);
                         byte[] buffer = new byte[bufferSize];
                         await fileStream.ReadAsync(buffer, 0, (int)bufferSize);
+                        DateTime startTime = DateTime.Now;
                         if (!await DoResumableUploadAsync(position, buffer))
                         {
                             MyLogger.Log($"Failed! Chunk range: {position}-{position + bufferSize - 1}");
                             return null;
                         }
+                        if ((DateTime.Now - startTime).TotalSeconds < 0.2) chunkSize += chunkSize / 2;
+                        else chunkSize = Math.Max(262144 * 2, chunkSize / 2);
                         //MyLogger.Log($"Sent: {i + chunkSize}/{fileStream.Length} bytes");
                         OnProgressChanged(position = byteReceivedSoFar + 1, fileStream.Length);
                     }
