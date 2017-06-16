@@ -1,5 +1,6 @@
 ﻿{
   "dependencies": {
+    "Google.Apis.Drive.v3": "1.14.1.567",
     "Microsoft.NETCore.UniversalWindowsPlatform": "5.2.2",
     "Xamarin.Forms": "2.3.4.224"
   },
