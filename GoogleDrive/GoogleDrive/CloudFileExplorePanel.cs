@@ -149,7 +149,6 @@ namespace GoogleDrive
             public async Task RefreshContent()
             {
                 PBmain.IsRunning = PBmain.IsVisible = true;
-                MyLogger.Assert(CloudFile.IsServiceReady);
                 var folderList = await cloudFolder.GetFoldersAsync();
                 this.Children.Clear();
                 this.Children.Add(BTNrefresh);
@@ -197,12 +196,6 @@ namespace GoogleDrive
             }
             private async void DoAsyncInitializationTasks()
             {
-                MyLogger.Log("Waiting for cloud service to be ready...");
-                while (!CloudFile.IsServiceReady)
-                {
-                    await Task.Delay(100);
-                }
-                MyLogger.Log("Cloud service is ready.");
                 await PushStack(CloudFile.RootFolder);
             }
             private async Task PushStack(CloudFile cloudFolder)

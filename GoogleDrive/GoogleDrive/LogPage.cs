@@ -67,10 +67,11 @@ namespace GoogleDrive
         }
         private async void DoAsyncInitializationTasks()
         {
-            await CloudFile.AuthorizeAsync();
+            //await CloudFile.AuthorizeAsync();
             //Old.Test2.Run();
             StatusCount = 0;
             MainStatus = "Done.";
+            await Task.Delay(0);
         }
         int logCount = 0;
         private void RegisterEvents()

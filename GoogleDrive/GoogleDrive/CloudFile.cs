@@ -4,11 +4,7 @@ using System.IO;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using Google.Apis.Auth.OAuth2;
 using Google.Apis.Drive.v3;
-using Google.Apis.Drive.v3.Data;
-using Google.Apis.Services;
-using Google.Apis.Upload;
 
 namespace GoogleDrive
 {
@@ -80,7 +76,7 @@ namespace GoogleDrive
         private async Task<CloudFile> CreateEmptyFileAsync(string fileName)
         {
             MyLogger.Assert(this.IsFolder);
-            var request = driveService.Files.Create(
+            var request = (await Drive.GetDriveServiceAsync()).Files.Create(
                 new Google.Apis.Drive.v3.Data.File
                 {
                     Name = fileName,
@@ -114,7 +110,7 @@ namespace GoogleDrive
         private async Task<List<CloudFile>> GetFilesAsync(string pattern)
         {
             // Define parameters of request.
-            FilesResource.ListRequest listRequest = driveService.Files.List();
+            FilesResource.ListRequest listRequest = (await Drive.GetDriveServiceAsync()).Files.List();
             //listRequest.Spaces = "drive";
             listRequest.Q = pattern;
             listRequest.PageSize = 100;
@@ -229,7 +225,7 @@ namespace GoogleDrive
                     FileUploadProgressChanged?.Invoke(fileName, bytesSent, totalLength);
                 });
                 var fileSize = fileStream.Length;
-                string id = await uploader.UploadAsync(driveService, new List<string> { this.Id }, fileStream, fileName);
+                string id = await uploader.UploadAsync(await Drive.GetDriveServiceAsync(), new List<string> { this.Id }, fileStream, fileName);
                 indexRetry:;
                 if (id == null)
                 {
@@ -262,7 +258,7 @@ namespace GoogleDrive
         public async Task<CloudFile> CreateFolderAsync(string folderName)
         {
             MyLogger.Assert(this.IsFolder);
-            var request = driveService.Files.Create(
+            var request =(await Drive.GetDriveServiceAsync()).Files.Create(
                 new Google.Apis.Drive.v3.Data.File
                 {
                     Name = folderName,
@@ -307,29 +303,8 @@ namespace GoogleDrive
             return ans[0];
         }
         #endregion
-        public static bool IsServiceReady { get { return driveService != null; } }
         public static CloudFile RootFolder { get { return new CloudFile("root", null, true, null); } }
-        private static DriveService driveService = null;
         private static void Log(string log) { MyLogger.Log(log); }
-        public static async Task AuthorizeAsync()
-        {
-            Log("Authorizing...");
-            //GoogleWebAuthorizationBroker.Folder = "Drive.Sample";
-            var credential = await GoogleWebAuthorizationBroker.AuthorizeAsync(
-                    new Uri("ms-appx:///Assets/client_id.json"),
-                    new[] { DriveService.Scope.DriveFile, DriveService.Scope.Drive },
-                    "user",
-                    CancellationToken.None);
-            Log("Creating service...");
-            // Create the service.
-            if (driveService != null) driveService.Dispose();
-            driveService = new DriveService(new BaseClientService.Initializer()
-            {
-                HttpClientInitializer = credential,
-                ApplicationName = "Google Drive APIs",
-            });
-            Log("Service created!");
-        }
         public CloudFile(string id, string name, bool isFolder, CloudFile _parent) { Id = id; Name = name; IsFolder = isFolder; parent = _parent; }
     }
 }
