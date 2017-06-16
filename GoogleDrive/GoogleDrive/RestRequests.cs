@@ -185,60 +185,70 @@ namespace GoogleDrive
             }
             public async Task<string> ResumeUploadAsync()
             {
+                indexRetry:;
+                MyLogger.Log($"Resuming... Uri: {resumableUri}");
                 var request = WebRequest.CreateHttp(resumableUri);
                 request.Headers["Content-Length"] = "0";
                 request.Headers["Content-Range"] = $"bytes */{fileStream.Length}";
                 request.Method = "PUT";
-                var response = await GetHttpResponseAsync(request);
+                using (var response = await GetHttpResponseAsync(request))
                 {
-                    MyLogger.Log($"Http response: {response.StatusCode} ({response.StatusCode})");
-                    if (response.StatusCode == HttpStatusCode.OK || response.StatusCode == HttpStatusCode.Created)
+                    try
                     {
-                        MyLogger.Log("The upload was already completed");
-                        LogHttpWebResponse(response);
-                        using (var reader = new System.IO.StreamReader(response.GetResponseStream()))
+                        MyLogger.Log($"Http response: {response.StatusCode} ({response.StatusCode})");
+                        if (response.StatusCode == HttpStatusCode.OK || response.StatusCode == HttpStatusCode.Created)
                         {
-                            var data = await reader.ReadToEndAsync();
-                            var jsonObject = JsonConvert.DeserializeObject<CloudFileJsonObject>(data);
-                            MyLogger.Assert(fileName == jsonObject.name);
-                            result = jsonObject.id;
+                            MyLogger.Log("The upload was already completed");
+                            LogHttpWebResponse(response);
+                            using (var reader = new System.IO.StreamReader(response.GetResponseStream()))
+                            {
+                                var data = await reader.ReadToEndAsync();
+                                var jsonObject = JsonConvert.DeserializeObject<CloudFileJsonObject>(data);
+                                MyLogger.Assert(fileName == jsonObject.name);
+                                result = jsonObject.id;
+                            }
+                            response.Dispose();
+                            return result;
                         }
-                        response.Dispose();
-                        return result;
-                    }
-                    else if ((int)response.StatusCode == 308)
-                    {
-                        long position;
-                        if (Array.IndexOf(response.Headers.AllKeys, "range") == -1)
+                        else if ((int)response.StatusCode == 308)
                         {
-                            MyLogger.Log("No bytes have been received by the server yet, starting from the first byte...");
-                            position = 0;
+                            long position;
+                            if (Array.IndexOf(response.Headers.AllKeys, "range") == -1)
+                            {
+                                MyLogger.Log("No bytes have been received by the server yet, starting from the first byte...");
+                                position = 0;
+                            }
+                            else
+                            {
+                                //bytes=0-42
+                                string s = response.Headers["range"];
+                                MyLogger.Log($"Range received by server: {s}");
+                                string pattern = "bytes=0-";
+                                MyLogger.Assert(s.StartsWith(pattern));
+                                position = long.Parse(s.Substring(pattern.Length));
+                            }
+                            response.Dispose();
+                            return await UploadAsync(position);
+                        }
+                        else if (response.StatusCode == HttpStatusCode.NotFound)
+                        {
+                            MyLogger.Log("The upload session has expired and the upload needs to be restarted from the beginning.");
+                            LogHttpWebResponse(response);
+                            response.Dispose();
+                            return null;
                         }
                         else
                         {
-                            //bytes=0-42
-                            string s = response.Headers["range"];
-                            MyLogger.Log($"Range received by server: {s}");
-                            string pattern = "bytes=0-";
-                            MyLogger.Assert(s.StartsWith(pattern));
-                            position = long.Parse(s.Substring(pattern.Length));
+                            MyLogger.Log("Http response isn't OK, Created or 308!");
+                            LogHttpWebResponse(response);
+                            response.Dispose();
+                            return null;
                         }
-                        response.Dispose();
-                        return await UploadAsync(position);
                     }
-                    else if (response.StatusCode == HttpStatusCode.NotFound)
+                    catch (Exception error)
                     {
-                        MyLogger.Log("The upload session has expired and the upload needs to be restarted from the beginning.");
-                        LogHttpWebResponse(response);
-                        response.Dispose();
-                        return null;
-                    }
-                    else
-                    {
-                        MyLogger.Log("Http response isn't OK, Created or 308!");
-                        LogHttpWebResponse(response);
-                        response.Dispose();
-                        return null;
+                        if (await MyLogger.Ask($"Error when resuming the upload, try again?\r\n{error}")) goto indexRetry;
+                        else return null;
                     }
                 }
             }

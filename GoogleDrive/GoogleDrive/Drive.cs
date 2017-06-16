@@ -46,7 +46,11 @@ namespace GoogleDrive
         }
         public static async Task<DriveService> GetDriveServiceAsync()
         {
-            if (_driveService == null)await AuthorizeAsync();
+            if (_driveService == null)
+            {
+                await AuthorizeAsync();
+                MyLogger.Log($"Access token: {await GetAccessTokenAsync()}");
+            }
             return _driveService;
         }
     }
