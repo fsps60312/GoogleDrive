@@ -1,8 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
 using Google.Apis.Drive.v3;
 
@@ -225,7 +223,7 @@ namespace GoogleDrive
                     FileUploadProgressChanged?.Invoke(fileName, bytesSent, totalLength);
                 });
                 var fileSize = fileStream.Length;
-                string id = await uploader.UploadAsync(await Drive.GetDriveServiceAsync(), new List<string> { this.Id }, fileStream, fileName);
+                string id = await uploader.UploadAsync(new List<string> { this.Id }, fileStream, fileName);
                 indexRetry:;
                 if (id == null)
                 {

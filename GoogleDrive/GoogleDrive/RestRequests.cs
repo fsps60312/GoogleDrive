@@ -2,8 +2,6 @@
 using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
-using Google.Apis.Drive.v3;
-using Google.Apis.Auth.OAuth2;
 using System.Net;
 using Newtonsoft.Json;
 
@@ -14,6 +12,13 @@ namespace GoogleDrive
         public class Uploader
         {
             //resumable upload REST API: https://developers.google.com/drive/v3/web/resumable-upload
+            private void LogHttpWebResponse(HttpWebResponse response)
+            {
+                MyLogger.Log($"Http response: {response.StatusCode} ({(int)response.StatusCode})");
+                StringBuilder sb = new StringBuilder();
+                foreach (var key in response.Headers.AllKeys) sb.AppendLine($"{key}:{JsonConvert.SerializeObject(response.Headers[key])}");
+                MyLogger.Log(sb.ToString());
+            }
             private async Task<HttpWebResponse> GetHttpResponseAsync(HttpWebRequest request)
             {
                 HttpWebResponse ans;
@@ -39,27 +44,38 @@ namespace GoogleDrive
                     }
                     else return ans;
                 }
-                if (ans.StatusCode == HttpStatusCode.InternalServerError ||
-                    ans.StatusCode == HttpStatusCode.BadGateway ||
-                    ans.StatusCode == HttpStatusCode.ServiceUnavailable ||
-                    ans.StatusCode == HttpStatusCode.GatewayTimeout)
+                switch (ans.StatusCode)
                 {
-                    if(minisecs>500*16)
-                    {
-                        MyLogger.Log("Attempted to reconnect but still failed.");
-                        return ans;
-                    }
-                    else
-                    {
-                        MyLogger.Log($"Response: {ans.StatusCode} ({(int)ans.StatusCode}), waiting for {minisecs} ms and try again...");
-                        await Task.Delay(minisecs);
-                        minisecs *= 2;
-                        goto indexRetry;
-                    }
+                    case HttpStatusCode.InternalServerError:
+                    case HttpStatusCode.BadGateway:
+                    case HttpStatusCode.ServiceUnavailable:
+                    case HttpStatusCode.GatewayTimeout:
+                        {
+                            if (minisecs > 500 * 16)
+                            {
+                                MyLogger.Log("Attempted to reconnect but still failed.");
+                                return ans;
+                            }
+                            else
+                            {
+                                MyLogger.Log($"Response: {ans.StatusCode} ({(int)ans.StatusCode}), waiting for {minisecs} ms and try again...");
+                                await Task.Delay(minisecs);
+                                minisecs *= 2;
+                                goto indexRetry;
+                            }
+                        }
+                    case HttpStatusCode.Unauthorized:
+                        {
+                            MyLogger.Log("Http response: Unauthorized (401). May due to expired access token, refreshing...");
+                            LogHttpWebResponse(ans);
+                            MyLogger.Assert(Array.IndexOf(request.Headers.AllKeys, "Authorization") != -1);
+                            request.Headers["Authorization"] = "Bearer " + (await Drive.RefreshAccessTokenAsync());
+                            goto indexRetry;
+                        }
+                    default: return ans;
                 }
-                else return ans;
             }
-            private async Task<string> CreateResumableUploadAsync(DriveService driveService, IList<string> parents)
+            private async Task<string> CreateResumableUploadAsync(IList<string> parents)
             {
                 string json = $"{{\"name\":\"{fileName}\"";
                 if (parents.Count > 0)
@@ -76,7 +92,7 @@ namespace GoogleDrive
                 request.Headers["Content-Length"] = json.Length.ToString();
                 //request.Headers["X-Upload-Content-Type"]= Constants.GetMimeType(System.IO.Path.GetExtension(filePath));
                 request.Headers["X-Upload-Content-Length"] = totalBytes.ToString();
-                request.Headers["Authorization"] = "Bearer " + (driveService.HttpClientInitializer as UserCredential).Token.AccessToken;
+                request.Headers["Authorization"] = "Bearer " + (await Drive.GetAccessTokenAsync());
                 request.Method = "POST";
                 using (System.IO.Stream requestStream = await request.GetRequestStreamAsync())
                 {
@@ -102,6 +118,7 @@ namespace GoogleDrive
                     else
                     {
                         MyLogger.Log("Http response isn't OK!");
+                        LogHttpWebResponse(response);
                         return null;
                     }
                 }
@@ -157,8 +174,8 @@ namespace GoogleDrive
                     }
                     else
                     {
-                        MyLogger.Log($"Http response: {response.StatusCode} ({(int)response.StatusCode})");
                         MyLogger.Log("Http response isn't 308!");
+                        LogHttpWebResponse(response);
                         return false;
                     }
                 }
@@ -179,15 +196,10 @@ namespace GoogleDrive
                     if (response.StatusCode == HttpStatusCode.OK || response.StatusCode == HttpStatusCode.Created)
                     {
                         MyLogger.Log("The upload was already completed");
-                        //MyLogger.Log(JsonConvert.SerializeObject(response.Headers.AllKeys));
-                        //foreach(var key in response.Headers.AllKeys)
-                        //{
-                        //    MyLogger.Log($"{key}:{response.Headers[key]}");
-                        //}
+                        LogHttpWebResponse(response);
                         using (var reader = new System.IO.StreamReader(response.GetResponseStream()))
                         {
                             var data = await reader.ReadToEndAsync();
-                            //MyLogger.Log($"{data}");
                             var jsonObject = JsonConvert.DeserializeObject<CloudFileJsonObject>(data);
                             MyLogger.Assert(fileName == jsonObject.name);
                             result = jsonObject.id;
@@ -197,11 +209,6 @@ namespace GoogleDrive
                     }
                     else if ((int)response.StatusCode == 308)
                     {
-                        //MyLogger.Log(JsonConvert.SerializeObject(response.Headers.AllKeys));
-                        //foreach (var key in response.Headers.AllKeys)
-                        //{
-                        //    MyLogger.Log($"{key}:{response.Headers[key]}");
-                        //}
                         long position;
                         if (Array.IndexOf(response.Headers.AllKeys, "range") == -1)
                         {
@@ -223,12 +230,14 @@ namespace GoogleDrive
                     else if (response.StatusCode == HttpStatusCode.NotFound)
                     {
                         MyLogger.Log("The upload session has expired and the upload needs to be restarted from the beginning.");
+                        LogHttpWebResponse(response);
                         response.Dispose();
                         return null;
                     }
                     else
                     {
                         MyLogger.Log("Http response isn't OK, Created or 308!");
+                        LogHttpWebResponse(response);
                         response.Dispose();
                         return null;
                     }
@@ -262,13 +271,13 @@ namespace GoogleDrive
                     return null;
                 }
             }
-            public async Task<string> UploadAsync(DriveService driveService, IList<string> parents, System.IO.Stream _fileStream, string _fileName)
+            public async Task<string> UploadAsync(IList<string> parents, System.IO.Stream _fileStream, string _fileName)
             {
                 try
                 {
                     fileStream = _fileStream;
                     fileName = _fileName;
-                    resumableUri = await CreateResumableUploadAsync(driveService, parents);
+                    resumableUri = await CreateResumableUploadAsync(parents);
                     MyLogger.Assert(resumableUri.StartsWith("\"") && resumableUri.EndsWith("\""));
                     resumableUri = resumableUri.Substring(1, resumableUri.Length - 2);
                     return await UploadAsync(0);
@@ -284,43 +293,6 @@ namespace GoogleDrive
             public delegate void ProgressChangedEventHandler(long bytesSent, long totalLength);
             public event ProgressChangedEventHandler ProgressChanged;
             private void OnProgressChanged(long bytesSent, long totalLength) { ProgressChanged?.Invoke(bytesSent, totalLength); }
-            //private async Task<bool> CompleteResumableUploadAsync(long startByte, byte[] dataBytes)
-            //{
-            //    var request = WebRequest.CreateHttp(resumableUri);
-            //    request.Headers["Content-Length"] = dataBytes.Length.ToString();
-            //    request.Headers["Content-Range"] = $"bytes {startByte}-{startByte + dataBytes.Length - 1}/{fileStream.Length}";
-            //    request.Method = "PUT";
-            //    using (System.IO.Stream requestStream = await request.GetRequestStreamAsync())
-            //    {
-            //        await requestStream.WriteAsync(dataBytes, 0, dataBytes.Length);
-            //    }
-            //    using (var response = await GetHttpResponseAsync(request))
-            //    {
-            //        MyLogger.Log($"Http response: {response.StatusCode} ({(int)response.StatusCode})");
-            //        if (response.StatusCode == HttpStatusCode.OK || response.StatusCode == HttpStatusCode.Created)
-            //        {
-            //            //MyLogger.Log(JsonConvert.SerializeObject(response.Headers.AllKeys));
-            //            //foreach(var key in response.Headers.AllKeys)
-            //            //{
-            //            //    MyLogger.Log($"{key}:{response.Headers[key]}");
-            //            //}
-            //            using (var reader = new System.IO.StreamReader(response.GetResponseStream()))
-            //            {
-            //                var data = await reader.ReadToEndAsync();
-            //                //MyLogger.Log($"{data}");
-            //                var jsonObject = JsonConvert.DeserializeObject<CloudFileJsonObject>(data);
-            //                MyLogger.Assert(System.IO.Path.GetFileName(filePath) == jsonObject.name);
-            //                result = jsonObject.id;
-            //            }
-            //            return true;
-            //        }
-            //        else
-            //        {
-            //            MyLogger.Log("Http response isn't OK or Created!");
-            //            return false;
-            //        }
-            //    }
-            //}
         }
     }
 }

@@ -12,10 +12,8 @@ namespace GoogleDrive
 		public App ()
 		{
 			InitializeComponent();
-
 			MainPage = new GoogleDrive.MainPage();
 		}
-
 		protected override void OnStart ()
 		{
 			// Handle when your app starts
