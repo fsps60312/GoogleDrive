@@ -12,11 +12,12 @@ namespace GoogleDrive
     class Drive
     {
         private static DriveService _driveService = null;
+        private static UserCredential _credential = null;
         private static async Task AuthorizeAsync()
         {
             Log("Authorizing...");
             //GoogleWebAuthorizationBroker.Folder = "Drive.Sample";
-            var credential = await GoogleWebAuthorizationBroker.AuthorizeAsync(
+            _credential = await GoogleWebAuthorizationBroker.AuthorizeAsync(
                     new Uri("ms-appx:///Assets/client_id.json"),
                     new[] { DriveService.Scope.DriveFile, DriveService.Scope.Drive },
                     "user",
@@ -26,7 +27,7 @@ namespace GoogleDrive
             if (_driveService != null) _driveService.Dispose();
             _driveService = new DriveService(new BaseClientService.Initializer()
             {
-                HttpClientInitializer = credential,
+                HttpClientInitializer = _credential,
                 ApplicationName = "Google Drive APIs",
             });
             Log("Service created!");
@@ -39,9 +40,19 @@ namespace GoogleDrive
         }
         public static async Task<string>RefreshAccessTokenAsync()
         {
+            Log("Reauthorizing...");
+            await GoogleWebAuthorizationBroker.ReauthorizeAsync(_credential, CancellationToken.None);
+            Log("Refreshing token...");
+            while (!(await _credential.RefreshTokenAsync(CancellationToken.None))) Log("Failed to refresh token, retrying...");
+            Log("Creating service...");
             MyLogger.Assert(_driveService != null);
             _driveService.Dispose();
-            _driveService = null;
+            _driveService = new DriveService(new BaseClientService.Initializer()
+            {
+                HttpClientInitializer = _credential,
+                ApplicationName = "Google Drive APIs",
+            });
+            Log("Service created!");
             return await GetAccessTokenAsync();
         }
         public static async Task<DriveService> GetDriveServiceAsync()
