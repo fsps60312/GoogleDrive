@@ -21,6 +21,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)LogPage.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)MainPage.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)MyLogger.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)MyStackPanel.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)RestRequests.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Test\TestPage.cs" />
   </ItemGroup>

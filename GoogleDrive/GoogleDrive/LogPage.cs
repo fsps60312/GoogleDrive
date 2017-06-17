@@ -141,7 +141,7 @@ namespace GoogleDrive
                 }
                 {
                     LBstatus = new Label { Text = "Initializing..." };
-                    GDmain.Children.Add(new ScrollView { Orientation = ScrollOrientation.Horizontal, Content = LBstatus }, 0, 0);
+                    GDmain.Children.Add(new ScrollView { Orientation = ScrollOrientation.Horizontal, Content = LBstatus }, 0, 1);
                 }
                 {
                     GDstatus1 = new Grid();
