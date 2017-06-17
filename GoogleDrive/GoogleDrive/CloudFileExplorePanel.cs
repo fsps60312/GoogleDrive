@@ -138,20 +138,13 @@ namespace GoogleDrive
                 this.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
                 this.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Auto) });
                 this.BackgroundColor = Color.LightGoldenrodYellow;
-                this.MinimumWidthRequest = 100;
                 {
-                    BTNrefresh = new Button { Text = "↻", BackgroundColor = Color.YellowGreen };
-                    BTNrefresh.Clicked += async delegate
-                    {
-                        BTNrefresh.IsEnabled = false;
-                        await RefreshContent();
-                        BTNrefresh.IsEnabled = true;
-                    };
+                    BTNrefresh = new Button { Text = "Initializing...", BackgroundColor = Color.YellowGreen };
+                    BTNrefresh.Clicked += async delegate { await RefreshContent(); };
                     this.Children.Add(BTNrefresh, 0, 0);
                 }
                 {
                     SPcontent = new MyStackPanel(ScrollOrientation.Vertical);
-                    this.Children.Add(SPcontent, 0, 1);
                 }
                 {
                     PBmain = new ActivityIndicator { IsRunning = IsVisible = true };
@@ -162,20 +155,24 @@ namespace GoogleDrive
             public async Task RefreshContent()
             {
                 PBmain.IsRunning = PBmain.IsVisible = true;
+                BTNrefresh.IsEnabled = false;
+                BTNrefresh.Text = "↻ (Refreshing...)";
                 StopRequest = false;
                 IsRunning = true;
                 await FoldersGetter.ResetAsync();
                 var list =await FoldersGetter.GetNextPageAsync();
+
+                //Clearing children when the view is removed from screen is much faster
+                this.Children.Remove(SPcontent);
                 SPcontent.Children.Clear();
+                this.Children.Add(SPcontent, 0, 1);
+
+                int folderCount = 0, fileCount = 0;
                 while (list != null)
                 {
                     foreach (var subFolder in list)
                     {
-                        if (StopRequest)
-                        {
-                            IsRunning = false;
-                            return;
-                        }
+                        if (StopRequest) break;
                         var lb = new CloudFileLabel(subFolder);
                         lb.FileClicked += delegate
                         {
@@ -184,7 +181,9 @@ namespace GoogleDrive
                             OnFileClicked(lb);
                         };
                         SPcontent.Children.Add(lb);
+                        folderCount++;
                     }
+                    BTNrefresh.Text = $"↻ (Refreshing...){(folderCount > 0 ? $" | {folderCount} folders" : "")}{(fileCount > 0 ? $" | {fileCount} files" : "")}";
                     list = await FoldersGetter.GetNextPageAsync();
                 }
                 await FilesGetter.ResetAsync();
@@ -206,13 +205,17 @@ namespace GoogleDrive
                             OnFileClicked(lb);
                         };
                         SPcontent.Children.Add(lb);
+                        fileCount++;
                     }
+                    BTNrefresh.Text = $"↻ (Refreshing...){(folderCount > 0 ? $" | {folderCount} folders" : "")}{(fileCount > 0 ? $" | {fileCount} files" : "")}";
                     list = await FilesGetter.GetNextPageAsync();
                 }
                 PBmain.IsRunning = PBmain.IsVisible = false;
                 MyLogger.Log("Folders loaded");
                 IsRunning = false;
                 await Task.Delay(500);
+                BTNrefresh.Text = $"↻{(folderCount>0?$" | {folderCount} folders":"")}{(fileCount>0?$" | {fileCount} files":"")}{(StopRequest?" (Incomplete)":"")}";
+                BTNrefresh.IsEnabled = true;
             }
             public async Task StopRefreshing()
             {
@@ -239,6 +242,7 @@ namespace GoogleDrive
             {
                 await PushStack(CloudFile.RootFolder);
             }
+            bool RemovingStacks = false;
             private async Task PushStack(CloudFile cloudFolder)
             {
                 try
@@ -250,12 +254,21 @@ namespace GoogleDrive
                     SPpanel.Children.Add(cfcp);
                     cfcp.FileClicked += async delegate (CloudFileLabel label)
                     {
+                        if (RemovingStacks)
+                        {
+                            MyLogger.Log("Waiting for stack removing completion...");
+                            while(RemovingStacks)await Task.Delay(100);
+                            MyLogger.Log("Stack remove completed.");
+                        }
+                        MyLogger.Assert(!RemovingStacks);
+                        RemovingStacks = true;
                         foreach (var p in Stack.GetRange(cfcp.FolderDepth, Stack.Count - cfcp.FolderDepth))
                         {
                             await p.StopRefreshing();
                             SPpanel.Children.Remove(p);
                         }
                         Stack.RemoveRange(cfcp.FolderDepth, Stack.Count - cfcp.FolderDepth);
+                        RemovingStacks = false;
                         if (label.File.IsFolder)
                         {
                             await PushStack(label.File);
@@ -269,6 +282,7 @@ namespace GoogleDrive
                 {
                     await MyLogger.Alert(error.ToString());
                 }
+                this.IsEnabled = true;
             }
             public event CloudFileLabel.FileClickedEventHandler FileClicked;
             private void OnFileClicked(CloudFileLabel label) { FileClicked?.Invoke(label); }
