@@ -250,6 +250,7 @@ namespace GoogleDrive
                 await PushStack(CloudFile.RootFolder);
             }
             bool RemovingStacks = false;
+            DateTime RemoveRequestTime = DateTime.MinValue;
             private async Task PushStack(CloudFile cloudFolder)
             {
                 try
@@ -261,12 +262,15 @@ namespace GoogleDrive
                     SPpanel.Children.Add(cfcp);
                     cfcp.FileClicked += async delegate (CloudFileLabel label)
                     {
+                        var removeRequestTime = DateTime.Now;
                         if (RemovingStacks)
                         {
                             MyLogger.Log("Waiting for stack removing completion...");
                             while(RemovingStacks)await Task.Delay(100);
                             MyLogger.Log("Stack remove completed.");
                         }
+                        if (removeRequestTime <= RemoveRequestTime) return;
+                        RemoveRequestTime = removeRequestTime;
                         MyLogger.Assert(!RemovingStacks);
                         RemovingStacks = true;
                         foreach (var p in Stack.GetRange(cfcp.FolderDepth, Stack.Count - cfcp.FolderDepth))
