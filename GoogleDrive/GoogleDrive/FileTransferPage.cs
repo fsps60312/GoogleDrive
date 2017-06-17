@@ -19,29 +19,7 @@ namespace GoogleDrive
         {
             InitializeControls();
             RegisterEvents();
-            //DoAsyncInitializationTasks();
         }
-        //const string UploadInfoSaveFilePath = "FileTransfer/UploadInfoSaveFile.txt";
-        //async void DoAsyncInitializationTasks()
-        //{
-        //    {
-        //        string content = await MyLogger.ReadFileAsync(UploadInfoSaveFilePath);
-        //        if(!string.IsNullOrEmpty(content))
-        //        {
-        //            var data = content.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
-        //            MyLogger.Assert(data.Length == 2);//file path, resumable uri
-        //            if(await MyLogger.Ask("Unfinished uploads found, resume?"))
-        //            {
-        //                throw new NotImplementedException();
-        //            }
-        //            else
-        //            {
-        //                throw new NotImplementedException();
-        //                //if (await MyLogger.Ask(""))
-        //            }
-        //        }
-        //    }
-        //}
         private async Task UploadFile(bool isFolder)
         {
             if (fileSelected == null)
@@ -81,6 +59,7 @@ namespace GoogleDrive
                                     MyLogger.Log($"Folder upload succeeded!\r\nName: {uploadedFolder.Name}\r\nIn: {containingCloudFolder.FullName}\r\nID: {uploadedFolder.Id}\r\nLocal: {folder.Path}");
                                 }
                             }
+                            MyLogger.Log("All done!");
                         }
                         else
                         {
@@ -91,22 +70,27 @@ namespace GoogleDrive
                             };
                             picker.FileTypeFilter.Clear();
                             picker.FileTypeFilter.Add("*");
-                            var file = await picker.PickSingleFileAsync();
-                            if (file != null)
+                            var fileList = await picker.PickMultipleFilesAsync();
+                            if (fileList != null)
                             {
-                                var stream = await file.OpenStreamForReadAsync();
-                                var containingCloudFolder = fileSelected;
-                                MyLogger.Log($"File uploading...\r\nName: {file.Name}\r\nIn: {containingCloudFolder.FullName}\r\nLocal: {file.Path}");
-                                var uploadedFile = await containingCloudFolder.UploadFileAsync(stream, file.Name);
-                                if (uploadedFile == null)
+                                foreach (var file in fileList)
                                 {
-                                    MyLogger.Log($"File upload canceled!\r\nName: {file.Name}\r\nIn: {containingCloudFolder.FullName}\r\nLocal: {file.Path}");
-                                }
-                                else
-                                {
-                                    MyLogger.Log($"File upload succeeded!\r\nName: {uploadedFile.Name}\r\nIn: {containingCloudFolder.FullName}\r\nID: {uploadedFile.Id}\r\nLocal: {file.Path}");
+                                    var containingCloudFolder = fileSelected;
+                                    MyLogger.Log($"File uploading...\r\nName: {file.Name}\r\nIn: {containingCloudFolder.FullName}\r\nLocal: {file.Path}");
+                                    var fileStream = await file.OpenStreamForReadAsync();
+                                    var uploadedFile = await containingCloudFolder.UploadFileAsync(fileStream, file.Name);
+                                    fileStream.Dispose();
+                                    if (uploadedFile == null)
+                                    {
+                                        MyLogger.Log($"File upload canceled!\r\nName: {file.Name}\r\nIn: {containingCloudFolder.FullName}\r\nLocal: {file.Path}");
+                                    }
+                                    else
+                                    {
+                                        MyLogger.Log($"File upload succeeded!\r\nName: {uploadedFile.Name}\r\nIn: {containingCloudFolder.FullName}\r\nID: {uploadedFile.Id}\r\nLocal: {file.Path}");
+                                    }
                                 }
                             }
+                            MyLogger.Log("All done!");
                         }
                         break;
                     default:

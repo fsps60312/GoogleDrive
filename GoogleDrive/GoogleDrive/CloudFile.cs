@@ -64,7 +64,9 @@ namespace GoogleDrive
             foreach (var storageFile in await folder.GetFilesAsync())
             {
                 MyLogger.Log($"Uploading file: {storageFile.Name} ({this.FullName})");
-                await this.UploadFileAsync(await storageFile.OpenStreamForReadAsync(), storageFile.Name);
+                var fileStream = await storageFile.OpenStreamForReadAsync();
+                await this.UploadFileAsync(fileStream, storageFile.Name);
+                fileStream.Dispose();
             }
             foreach (var storageFolder in await folder.GetFoldersAsync())
             {
@@ -174,6 +176,7 @@ namespace GoogleDrive
                 try
                 {
                     await cloudFolderToUpload.UploadFileRecursivelyOnWindowsAsync(folder);
+                    MyLogger.Log($"Folder upload succeeded! {uploadedSize}/{statistic.Item1} bytes, {fileCount}/{statistic.Item2} files, {statistic.Item3} folders");
                 }
                 catch (Exception error)
                 {
@@ -190,8 +193,10 @@ namespace GoogleDrive
             {
                 if (fileStream.Length == 0)
                 {
-                    fileStream.Dispose();
-                    return await CreateEmptyFileAsync(fileName);
+                    var uploadedFile= await CreateEmptyFileAsync(fileName);
+                    MyLogger.Log($"File upload succeeded!\r\nName: {uploadedFile.Name}\r\nParent: {this.FullName}\r\nID: {uploadedFile.Id}\r\nSize: {fileStream.Length} bytes");
+                    MyLogger.Assert(uploadedFile.Name == fileName);
+                    return uploadedFile;
                 }
                 MyLogger.Assert(this.IsFolder);
                 var uploader = new RestRequests.Uploader();
@@ -201,7 +206,6 @@ namespace GoogleDrive
                     MyLogger.SetProgress2((double)bytesSent / totalLength);
                     FileUploadProgressChanged?.Invoke(fileName, bytesSent, totalLength);
                 });
-                var fileSize = fileStream.Length;
                 string id = await uploader.UploadAsync(new List<string> { this.Id }, fileStream, fileName);
                 indexRetry:;
                 if (id == null)
@@ -219,9 +223,9 @@ namespace GoogleDrive
                 }
                 else
                 {
-                    MyLogger.Log($"Upload successfully completed!\r\nFile ID: {id}");
+                    MyLogger.Log($"File upload succeeded!\r\nName: {fileName}\r\nParent: {this.FullName}\r\nID: {id}\r\nSize: {fileStream.Length} bytes");
                     var ans = new CloudFile(id, fileName, false, this);
-                    FileUploaded?.Invoke(ans, (ulong)fileSize);
+                    FileUploaded?.Invoke(ans, (ulong)fileStream.Length);
                     return ans;
                 }
             }

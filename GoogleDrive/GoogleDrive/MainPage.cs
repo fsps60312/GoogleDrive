@@ -18,14 +18,9 @@ namespace GoogleDrive
                 PGfileTransfer = new FileTransferPage();
                 this.Children.Add(PGfileTransfer);
             }
-            {
-                PGtest = new Test.TestPage();
-                this.Children.Add(PGtest);
-            }
         }
 
         LogPage PGlog;
         FileTransferPage PGfileTransfer;
-        Test.TestPage PGtest;
     }
 }

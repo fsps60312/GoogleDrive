@@ -297,7 +297,6 @@ namespace GoogleDrive
                         OnProgressChanged(position = byteReceivedSoFar + 1, fileStream.Length);
                     }
                     OnProgressChanged(fileStream.Length, fileStream.Length);
-                    fileStream.Dispose();
                     return result;
                 }
                 catch (Exception error)

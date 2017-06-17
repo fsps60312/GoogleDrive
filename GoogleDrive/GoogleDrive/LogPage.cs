@@ -35,6 +35,12 @@ namespace GoogleDrive
                 SLmain.Children.Add(sl);
                 await this.ScrollToEnd();
             }
+            public void Clear()
+            {
+                this.Content = null;
+                SLmain.Children.Clear();
+                this.Content = SLmain;
+            }
         }
         public LogPage()
         {
@@ -78,6 +84,16 @@ namespace GoogleDrive
         }
         private void RegisterEvents()
         {
+            BTNclear.Clicked +=async delegate
+              {
+                  BTNclear.IsEnabled = false;
+                  if (await MyLogger.Ask("Do you want to clear all the logs?"))
+                  {
+                      EDlog.Clear();
+                      MyLogger.Log("All logs cleared.");
+                  }
+                  BTNclear.IsEnabled = true;
+              };
             MyLogger.LogAppended += delegate (string log)
             {
                 //log = $"#{++logCount}:\t{log}";
@@ -140,8 +156,18 @@ namespace GoogleDrive
                     GDmain.Children.Add(new Frame { OutlineColor = Color.Accent, Padding = new Thickness(5), Content = EDlog }, 0, 0);
                 }
                 {
-                    LBstatus = new Label { Text = "Initializing..." };
-                    GDmain.Children.Add(new ScrollView { Orientation = ScrollOrientation.Horizontal, Content = LBstatus }, 0, 1);
+                    GDstatus = new Grid();
+                    GDstatus.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                    GDstatus.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2, GridUnitType.Auto) });
+                    {
+                        LBstatus = new Label { Text = "Initializing..." };
+                        GDstatus.Children.Add(new ScrollView { Orientation = ScrollOrientation.Horizontal, Content = LBstatus }, 0, 0);
+                    }
+                    {
+                        BTNclear = new Button { Text = "Clear" };
+                        GDstatus.Children.Add(BTNclear, 1, 0);
+                    }
+                    GDmain.Children.Add(GDstatus, 0, 1);
                 }
                 {
                     GDstatus1 = new Grid();
@@ -175,11 +201,12 @@ namespace GoogleDrive
                     Grid.SetRow(GDstatus2, 3);
                     GDmain.Children.Add(GDstatus2);
                 }
-                this.Content = GDmain;
+                this.Content =new UnwipableContentView { Content = GDmain };
             }
         }
         MyTextBox EDlog;
-        Grid GDmain, GDstatus1, GDstatus2;
+        Grid GDmain,GDstatus, GDstatus1, GDstatus2;
+        Button BTNclear;
         Label LBstatus, LBstatus1, LBstatus2;
         ProgressBar PBstatus1, PBstatus2;
     }

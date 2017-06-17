@@ -63,10 +63,12 @@ namespace GoogleDrive
             if (index == -1)
             {
                 var file = await folder.CreateFileAsync(fileName, Windows.Storage.CreationCollisionOption.OpenIfExists);
-                var stream = await file.OpenStreamForReadAsync();
-                using (var reader = new StreamReader(stream))
+                using (var stream = await file.OpenStreamForReadAsync())
                 {
-                    return await reader.ReadToEndAsync();
+                    using (var reader = new StreamReader(stream))
+                    {
+                        return await reader.ReadToEndAsync();
+                    }
                 }
             }
             else
