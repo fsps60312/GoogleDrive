@@ -165,8 +165,7 @@ namespace GoogleDrive
                         Grid.SetRow(PNcloud, 1);
                         GDcloudPanel.Children.Add(PNcloud);
                     }
-                    Grid.SetColumn(GDcloudPanel, 0);
-                    GDmain.Children.Add(GDcloudPanel);
+                    GDmain.Children.Add(new Frame { OutlineColor = Color.Accent, Padding = new Thickness(5), Content = GDcloudPanel, BackgroundColor = Color.LightYellow }, 0,0);
                 }
                 {
                     SPbuttons = new StackLayout { Orientation = StackOrientation.Vertical };
@@ -186,8 +185,7 @@ namespace GoogleDrive
                         BTNtest = new Button { Text = "Test" };
                         SPbuttons.Children.Add(BTNtest);
                     }
-                    Grid.SetColumn(SPbuttons, 1);
-                    GDmain.Children.Add(SPbuttons);
+                    GDmain.Children.Add(new Frame { OutlineColor = Color.Accent, Padding = new Thickness(5), Content = SPbuttons }, 1,0);
                 }
                 this.Content = GDmain;
             }

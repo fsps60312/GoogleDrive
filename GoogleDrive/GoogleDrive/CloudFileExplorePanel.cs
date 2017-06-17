@@ -118,8 +118,9 @@ namespace GoogleDrive
             public event FileClickedEventHandler FileClicked;
             private void OnFileClicked(CloudFileLabel label) { FileClicked?.Invoke(label); }
         }
-        class CloudFolderContentPanel : Grid
+        class CloudFolderContentPanel : Frame
         {
+            Grid GDmain;
             CloudFile cloudFolder;
             ActivityIndicator PBmain;
             MyStackPanel SPcontent;
@@ -134,21 +135,27 @@ namespace GoogleDrive
                 FolderDepth = folderDepth;
                 FoldersGetter = cloudFolder.FoldersGetter();
                 FilesGetter = cloudFolder.FilesGetter();
-                this.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Auto) });
-                this.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-                this.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Auto) });
                 this.BackgroundColor = Color.LightGoldenrodYellow;
+                this.OutlineColor = Color.Accent;
+                this.Padding = new Thickness(5);
                 {
-                    BTNrefresh = new Button { Text = "Initializing...", BackgroundColor = Color.YellowGreen };
-                    BTNrefresh.Clicked += async delegate { await RefreshContent(); };
-                    this.Children.Add(BTNrefresh, 0, 0);
-                }
-                {
-                    SPcontent = new MyStackPanel(ScrollOrientation.Vertical);
-                }
-                {
-                    PBmain = new ActivityIndicator { IsRunning = IsVisible = true };
-                    this.Children.Add(PBmain, 0, 2);
+                    GDmain = new Grid();
+                    GDmain.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Auto) });
+                    GDmain.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+                    GDmain.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Auto) });
+                    {
+                        BTNrefresh = new Button { Text = "Initializing...", BackgroundColor = Color.YellowGreen };
+                        BTNrefresh.Clicked += async delegate { await RefreshContent(); };
+                        GDmain.Children.Add(BTNrefresh, 0, 0);
+                    }
+                    {
+                        SPcontent = new MyStackPanel(ScrollOrientation.Vertical);
+                    }
+                    {
+                        PBmain = new ActivityIndicator { IsRunning = IsVisible = true };
+                        GDmain.Children.Add(PBmain, 0, 2);
+                    }
+                    this.Content = GDmain;
                 }
             }
             bool StopRequest,IsRunning=false;
@@ -163,9 +170,9 @@ namespace GoogleDrive
                 var list =await FoldersGetter.GetNextPageAsync();
 
                 //Clearing children when the view is removed from screen is much faster
-                this.Children.Remove(SPcontent);
+                GDmain.Children.Remove(SPcontent);
                 SPcontent.Children.Clear();
-                this.Children.Add(SPcontent, 0, 1);
+                GDmain.Children.Add(SPcontent, 0, 1);
 
                 int folderCount = 0, fileCount = 0;
                 while (list != null)
@@ -215,6 +222,7 @@ namespace GoogleDrive
                 IsRunning = false;
                 await Task.Delay(500);
                 BTNrefresh.Text = $"↻{(folderCount>0?$" | {folderCount} folders":"")}{(fileCount>0?$" | {fileCount} files":"")}{(StopRequest?" (Incomplete)":"")}";
+                if (folderCount == 0 && fileCount == 0) BTNrefresh.Text += " (Empty)";
                 BTNrefresh.IsEnabled = true;
             }
             public async Task StopRefreshing()
@@ -232,7 +240,6 @@ namespace GoogleDrive
         {
             MyStackPanel SPpanel;
             List<CloudFolderContentPanel> Stack = new List<CloudFolderContentPanel>();
-            Label LBpadding;
             public CloudFolderStackPanel()
             {
                 InitializaControls();
@@ -289,11 +296,7 @@ namespace GoogleDrive
             private void InitializaControls()
             {
                 {
-                    SPpanel = new MyStackPanel(ScrollOrientation.Horizontal) { BackgroundColor = Color.LightYellow };// {VerticalAlignment = VerticalAlignment.Stretch, HorizontalAlignment = HorizontalAlignment.Stretch };
-                    {
-                        LBpadding = new Label { IsVisible = true, WidthRequest = 0 };
-                        SPpanel.Children.Add(LBpadding);
-                    }
+                    SPpanel = new MyStackPanel(ScrollOrientation.Horizontal) { BackgroundColor = Color.LightYellow };
                     this.Content = SPpanel;
                 }
             }

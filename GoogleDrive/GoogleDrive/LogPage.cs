@@ -137,7 +137,7 @@ namespace GoogleDrive
                 GDmain.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Auto) });
                 {
                     EDlog = new MyTextBox();
-                    GDmain.Children.Add(EDlog, 0, 0);
+                    GDmain.Children.Add(new Frame { OutlineColor = Color.Accent, Padding = new Thickness(5), Content = EDlog }, 0, 0);
                 }
                 {
                     LBstatus = new Label { Text = "Initializing..." };
