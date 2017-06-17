@@ -118,19 +118,27 @@ namespace GoogleDrive
             public event FileClickedEventHandler FileClicked;
             private void OnFileClicked(CloudFileLabel label) { FileClicked?.Invoke(label); }
         }
-        class CloudFolderContentPanel : MyStackPanel
+        class CloudFolderContentPanel : Grid
         {
             CloudFile cloudFolder;
             ActivityIndicator PBmain;
+            MyStackPanel SPcontent;
             Button BTNrefresh;
             MyLabel LBselected = null;
+            CloudFile.SearchListGetter FoldersGetter,FilesGetter;
             public int FolderDepth;
-            public CloudFolderContentPanel(CloudFile _cloudFolder, int folderDepth) : base(ScrollOrientation.Vertical)
+            public CloudFolderContentPanel(CloudFile _cloudFolder, int folderDepth)
             {
                 MyLogger.Assert(_cloudFolder.IsFolder);
                 cloudFolder = _cloudFolder;
                 FolderDepth = folderDepth;
+                FoldersGetter = cloudFolder.FoldersGetter();
+                FilesGetter = cloudFolder.FilesGetter();
+                this.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Auto) });
+                this.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+                this.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Auto) });
                 this.BackgroundColor = Color.LightGoldenrodYellow;
+                this.MinimumWidthRequest = 100;
                 {
                     BTNrefresh = new Button { Text = "↻", BackgroundColor = Color.YellowGreen };
                     BTNrefresh.Clicked += async delegate
@@ -139,47 +147,80 @@ namespace GoogleDrive
                         await RefreshContent();
                         BTNrefresh.IsEnabled = true;
                     };
-                    this.Children.Add(BTNrefresh);
+                    this.Children.Add(BTNrefresh, 0, 0);
+                }
+                {
+                    SPcontent = new MyStackPanel(ScrollOrientation.Vertical);
+                    this.Children.Add(SPcontent, 0, 1);
                 }
                 {
                     PBmain = new ActivityIndicator { IsRunning = IsVisible = true };
-                    this.Children.Add(PBmain);
+                    this.Children.Add(PBmain, 0, 2);
                 }
             }
+            bool StopRequest,IsRunning=false;
             public async Task RefreshContent()
             {
                 PBmain.IsRunning = PBmain.IsVisible = true;
-                var folderList = await cloudFolder.GetFoldersAsync();
-                this.Children.Clear();
-                this.Children.Add(BTNrefresh);
-                this.Children.Add(PBmain);
-                foreach (var subFolder in folderList)
+                StopRequest = false;
+                IsRunning = true;
+                await FoldersGetter.ResetAsync();
+                var list =await FoldersGetter.GetNextPageAsync();
+                SPcontent.Children.Clear();
+                while (list != null)
                 {
-                    var lb = new CloudFileLabel(subFolder);
-                    lb.FileClicked += delegate
+                    foreach (var subFolder in list)
                     {
-                        LBselected?.Deselect();
-                        (LBselected = lb).Select();
-                        OnFileClicked(lb);
-                    };
-                    this.Children.Add(lb);
+                        if (StopRequest)
+                        {
+                            IsRunning = false;
+                            return;
+                        }
+                        var lb = new CloudFileLabel(subFolder);
+                        lb.FileClicked += delegate
+                        {
+                            LBselected?.Deselect();
+                            (LBselected = lb).Select();
+                            OnFileClicked(lb);
+                        };
+                        SPcontent.Children.Add(lb);
+                    }
+                    list = await FoldersGetter.GetNextPageAsync();
                 }
-                var fileList = await cloudFolder.GetFilesAsync();
-                //if (fileList.Count > 10) fileList = fileList.GetRange(0, 10);
-                foreach (var file in fileList)
+                await FilesGetter.ResetAsync();
+                list = await FilesGetter.GetNextPageAsync();
+                while (list != null)
                 {
-                    var lb = new CloudFileLabel(file);
-                    lb.FileClicked += delegate
+                    foreach (var file in list)
                     {
-                        LBselected?.Deselect();
-                        (LBselected = lb).Select();
-                        OnFileClicked(lb);
-                    };
-                    this.Children.Add(lb);
+                        if (StopRequest)
+                        {
+                            IsRunning = false;
+                            return;
+                        }
+                        var lb = new CloudFileLabel(file);
+                        lb.FileClicked += delegate
+                        {
+                            LBselected?.Deselect();
+                            (LBselected = lb).Select();
+                            OnFileClicked(lb);
+                        };
+                        SPcontent.Children.Add(lb);
+                    }
+                    list = await FilesGetter.GetNextPageAsync();
                 }
                 PBmain.IsRunning = PBmain.IsVisible = false;
                 MyLogger.Log("Folders loaded");
+                IsRunning = false;
                 await Task.Delay(500);
+            }
+            public async Task StopRefreshing()
+            {
+                if(IsRunning)
+                {
+                    StopRequest = true;
+                    while (IsRunning) await Task.Delay(100);
+                }
             }
             public event CloudFileLabel.FileClickedEventHandler FileClicked;
             private void OnFileClicked(CloudFileLabel label) { FileClicked?.Invoke(label); }
@@ -206,13 +247,12 @@ namespace GoogleDrive
                     CloudFolderContentPanel cfcp = new CloudFolderContentPanel(cloudFolder, Stack.Count + 1);
                     cfcp.FileClicked += delegate (CloudFileLabel label) { OnFileClicked(label); };
                     Stack.Add(cfcp);
-                    SPpanel.Children.Remove(LBpadding);
                     SPpanel.Children.Add(cfcp);
-                    SPpanel.Children.Add(LBpadding);
                     cfcp.FileClicked += async delegate (CloudFileLabel label)
                     {
                         foreach (var p in Stack.GetRange(cfcp.FolderDepth, Stack.Count - cfcp.FolderDepth))
                         {
+                            await p.StopRefreshing();
                             SPpanel.Children.Remove(p);
                         }
                         Stack.RemoveRange(cfcp.FolderDepth, Stack.Count - cfcp.FolderDepth);
@@ -222,7 +262,8 @@ namespace GoogleDrive
                         }
                     };
                     await cfcp.RefreshContent();
-                    await SPpanel.ScrollToAsync(cfcp, ScrollToPosition.Center, true);
+                    await SPpanel.ScrollToAsync(double.MaxValue, 0, true);
+                    await SPpanel.ScrollToAsync(double.MaxValue, 0, false);
                 }
                 catch(Exception error)
                 {

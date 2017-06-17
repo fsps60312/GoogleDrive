@@ -100,43 +100,22 @@ namespace GoogleDrive
             FileUploaded?.Invoke(ans, 0);
             return ans;
         }
-        private async Task<List<CloudFile>> GetFilesAsync(bool isFolder)
+        private SearchListGetter FilesGetter(bool isFolder)
         {
             MyLogger.Assert(this.IsFolder);
-            return await GetFilesAsync($"'{this.Id}' in parents and trashed != true and mimeType {(isFolder ? "=" : "!=")} '{Constants.FolderMimeType}'");
+            return FilesGetter($"'{this.Id}' in parents and trashed != true and mimeType {(isFolder ? "=" : "!=")} '{Constants.FolderMimeType}'");
         }
-        private async Task<List<CloudFile>> GetFilesAsync(string pattern)
+        private SearchListGetter FilesGetter(string pattern)
         {
-            // Define parameters of request.
-            FilesResource.ListRequest listRequest = (await Drive.GetDriveServiceAsync()).Files.List();
-            //listRequest.Spaces = "drive";
-            listRequest.Q = pattern;
-            listRequest.PageSize = 100;
-            listRequest.Fields = "nextPageToken, files(id, name, mimeType)";
-            Log("Searching...");
-            // List files.
-            var ans = new List<CloudFile>();
-            Google.Apis.Drive.v3.Data.FileList result;
-            int count = 0;
-            do
-            {
-                result = await listRequest.ExecuteAsync();
-                Log($"List #{++count} received.");
-                //if (result.IncompleteSearch.HasValue && (bool)result.IncompleteSearch) await MyLogger.Alert("This is Incomplete Search");
-                foreach (var file in result.Files)
-                {
-                    ans.Add(new CloudFile(file.Id, file.Name, file.MimeType == Constants.FolderMimeType, this));
-                }
-            } while ((listRequest.PageToken = result.NextPageToken) != null);
-            Log("Done.");
-            return ans;
+            MyLogger.Assert(this.IsFolder);
+            return new SearchListGetter(this, pattern);
         }
         #endregion
         #region PublicMethods
         public async Task<CloudFile> UploadFolderOnWindowsAsync(Windows.Storage.StorageFolder folder)
         {
             MyLogger.Assert(this.IsFolder);
-            var cloudFolders = await this.GetFoldersAsync();
+            var cloudFolders = await this.FoldersGetter().GetAllPagesAsync();
             var cloudFolderNames = new HashSet<string>();
             foreach (var subFolder in cloudFolders) cloudFolderNames.Add(subFolder.Name);
             if (cloudFolderNames.Contains(folder.Name))
@@ -282,23 +261,104 @@ namespace GoogleDrive
             FolderCreated?.Invoke(ans);
             return ans;
         }
-        public async Task<List<CloudFile>> GetFoldersAsync()
+        public SearchListGetter FoldersGetter()
         {
             MyLogger.Assert(this.IsFolder);
-            return await GetFilesAsync(true);
+            return FilesGetter(true);
         }
-        public async Task<List<CloudFile>> GetFilesAsync()
+        public SearchListGetter FilesGetter()
         {
             MyLogger.Assert(this.IsFolder);
-            return await GetFilesAsync(false);
+            return FilesGetter(false);
         }
         public async Task<CloudFile> GetFolderAsync(string folderName)
         {
             MyLogger.Assert(this.IsFolder);
-            var ans = await GetFilesAsync($"'{this.Id}' in parents and trashed != true and mimeType = '{Constants.FolderMimeType}' and name = '{folderName}'");
+            var ans = await FilesGetter($"'{this.Id}' in parents and trashed != true and mimeType = '{Constants.FolderMimeType}' and name = '{folderName}'").GetNextPageAsync(2);
             if (ans.Count == 0) return null;
             MyLogger.Assert(ans.Count == 1);
             return ans[0];
+        }
+        #endregion
+        #region ClassDefinitions
+        public class SearchListGetter
+        {
+            public bool IsRunning { get; private set; }
+            private bool StopRequest;
+            string SearchPattern;
+            FilesResource.ListRequest ListRequest = null;
+            CloudFile Parent;
+            public delegate void NewFileListGotEventHandler(List<CloudFile> files);
+            public event NewFileListGotEventHandler NewFileListGot;
+            public SearchListGetter(CloudFile parent, string pattern)
+            {
+                Parent = parent;
+                SearchPattern = pattern;
+                IsRunning = false;
+            }
+            public async Task ResetAsync()
+            {
+                if (IsRunning) await StopAsync();
+                ListRequest = null;
+            }
+            public async Task<List<CloudFile>> GetAllPagesAsync()
+            {
+                var ans = new List<CloudFile>();
+                List<CloudFile> tmp;
+                while ((tmp = await GetNextPageAsync()) != null) ans.AddRange(tmp);
+                return ans;
+            }
+            public async Task<List<CloudFile>> GetNextPageAsync(int pageSize=100)
+            {
+                if (ListRequest == null)
+                {
+                    MyLogger.Assert(!IsRunning);
+                    ListRequest = (await Drive.GetDriveServiceAsync()).Files.List();
+                    ListRequest.Q = SearchPattern;
+                    ListRequest.Fields = "nextPageToken, files(id, name, mimeType)";
+                    Log("Getting first page...");
+                }
+                else Log("Getting next page...");
+                if (ListRequest.PageToken == "(END)") return null;
+                ListRequest.PageSize = pageSize;
+                var result = await ListRequest.ExecuteAsync();
+                //if (result.IncompleteSearch.HasValue && (bool)result.IncompleteSearch) await MyLogger.Alert("This is Incomplete Search");
+                var ans = new List<CloudFile>();
+                foreach (var file in result.Files)
+                {
+                    ans.Add(new CloudFile(file.Id, file.Name, file.MimeType == Constants.FolderMimeType, Parent));
+                }
+                NewFileListGot?.Invoke(ans);
+                ListRequest.PageToken = result.NextPageToken;
+                if (ListRequest.PageToken == null) ListRequest.PageToken ="(END)";
+                return ans;
+            }
+            public async Task StartAsync()
+            {
+                MyLogger.Assert(!IsRunning);
+                StopRequest = false;
+                IsRunning = true;
+                while(true)
+                {
+                    if (StopRequest)
+                    {
+                        MyLogger.Log("Interrupted.");
+                        IsRunning = false;
+                        return;
+                    }
+                    var ans = await GetNextPageAsync();
+                    if (ans == null) break;
+                    NewFileListGot?.Invoke(ans);
+                }
+                Log("Done.");
+            }
+            public async Task StopAsync()
+            {
+                MyLogger.Assert(IsRunning);
+                StopRequest = true;
+                while (IsRunning) await Task.Delay(100);
+                return;
+            }
         }
         #endregion
         public static CloudFile RootFolder { get { return new CloudFile("root", null, true, null); } }
