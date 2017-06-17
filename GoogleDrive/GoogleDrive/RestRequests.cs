@@ -38,11 +38,8 @@ namespace GoogleDrive
                 }
                 if (ans == null)
                 {
-                    if (await MyLogger.Ask("null response, try again?"))
-                    {
-                        goto indexRetry;
-                    }
-                    else return ans;
+                    MyLogger.Log("Got null response");
+                    return null;
                 }
                 switch (ans.StatusCode)
                 {
@@ -77,6 +74,7 @@ namespace GoogleDrive
             }
             private async Task<string> CreateResumableUploadAsync(IList<string> parents)
             {
+                indexRetry:;
                 string json = $"{{\"name\":\"{fileName}\"";
                 if (parents.Count > 0)
                 {
@@ -103,6 +101,11 @@ namespace GoogleDrive
                 }
                 using (var response = await GetHttpResponseAsync(request))
                 {
+                    if (response == null)
+                    {
+                        MyLogger.Log("Null response, trying to create the upload again...");
+                        goto indexRetry;
+                    }
                     MyLogger.Log($"Http response: {response.StatusCode} ({(int)response.StatusCode})");
                     if (response.StatusCode == HttpStatusCode.OK)
                     {
@@ -124,7 +127,8 @@ namespace GoogleDrive
                 }
             }
             long byteReceivedSoFar;
-            private async Task<bool> DoResumableUploadAsync(long startByte, byte[] dataBytes)
+            enum ChunkUploadResult { Success,Failed,NullResponse};
+            private async Task<ChunkUploadResult> DoResumableUploadAsync(long startByte, byte[] dataBytes)
             {
                 var request = WebRequest.CreateHttp(resumableUri);
                 request.Headers["Content-Length"] = dataBytes.Length.ToString();
@@ -136,6 +140,7 @@ namespace GoogleDrive
                 }
                 using (var response = await GetHttpResponseAsync(request))
                 {
+                    if(response==null)return ChunkUploadResult.NullResponse;
                     if ((int)response.StatusCode == 308)
                     {
                         if (Array.IndexOf(response.Headers.AllKeys, "range") == -1)
@@ -152,7 +157,7 @@ namespace GoogleDrive
                             MyLogger.Assert(s.StartsWith(pattern));
                             byteReceivedSoFar = long.Parse(s.Substring(pattern.Length));
                         }
-                        return true;
+                        return ChunkUploadResult.Success;
                     }
                     else if (response.StatusCode == HttpStatusCode.OK || response.StatusCode == HttpStatusCode.Created)
                     {
@@ -169,13 +174,13 @@ namespace GoogleDrive
                         //await MyLogger.Alert(sb.ToString());
                         //MyLogger.Assert(Array.IndexOf(response.Headers.AllKeys, "content-length") != -1);
                         byteReceivedSoFar = fileStream.Length;// long.Parse(response.Headers["content-length"]);
-                        return true;
+                        return ChunkUploadResult.Success;
                     }
                     else
                     {
                         MyLogger.Log("Http response isn't 308!");
                         LogHttpWebResponse(response);
-                        return false;
+                        return ChunkUploadResult.Failed;
                     }
                 }
             }
@@ -185,11 +190,7 @@ namespace GoogleDrive
             }
             public async Task<string> ResumeUploadAsync()
             {
-                if(resumableUri==null)
-                {
-                    MyLogger.Log("File not created, restarting upload...");
-                    return await UploadAsync(parents, fileStream, fileName);
-                }
+                MyLogger.Assert(resumableUri != null);
                 indexRetry:;
                 MyLogger.Log($"Resuming... Uri: {resumableUri}");
                 var request = WebRequest.CreateHttp(resumableUri);
@@ -198,6 +199,11 @@ namespace GoogleDrive
                 request.Method = "PUT";
                 using (var response = await GetHttpResponseAsync(request))
                 {
+                    if (response == null)
+                    {
+                        MyLogger.Log("Null response, trying to resume the upload again...");
+                        goto indexRetry;
+                    }
                     try
                     {
                         MyLogger.Log($"Http response: {response.StatusCode} ({response.StatusCode})");
@@ -269,10 +275,25 @@ namespace GoogleDrive
                         byte[] buffer = new byte[bufferSize];
                         await fileStream.ReadAsync(buffer, 0, (int)bufferSize);
                         DateTime startTime = DateTime.Now;
-                        if (!await DoResumableUploadAsync(position, buffer))
+                        var result = await DoResumableUploadAsync(position, buffer);
+                        switch (result)
                         {
-                            MyLogger.Log($"Failed! Chunk range: {position}-{position + bufferSize - 1}");
-                            return null;
+                            case ChunkUploadResult.Success:break;
+                            case ChunkUploadResult.Failed:
+                                {
+                                    MyLogger.Log($"Failed! Chunk range: {position}-{position + bufferSize - 1}");
+                                    return null;
+                                }
+                            case ChunkUploadResult.NullResponse:
+                                {
+                                    MyLogger.Log("Null response, trying to resume...");
+                                    return await ResumeUploadAsync();
+                                }
+                            default:
+                                {
+                                    MyLogger.Log($"Unknown ChunkUploadResult: {result}");
+                                    MyLogger.Assert(false);
+                                }break;
                         }
                         if ((DateTime.Now - startTime).TotalSeconds < 0.2) chunkSize += chunkSize / 2;
                         else chunkSize = Math.Max(262144 * 2, chunkSize / 2);
