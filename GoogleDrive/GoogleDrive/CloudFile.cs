@@ -46,7 +46,7 @@ namespace GoogleDrive
             }
             return new Tuple<ulong, ulong, ulong>(contentLength, fileCount, folderCount);
         }
-        private async Task CreateFolderRecursivelyOnWindowsAsync(Windows.Storage.StorageFolder folder)
+        private async Task<CloudFile> CreateFolderRecursivelyOnWindowsAsync(Windows.Storage.StorageFolder folder)
         {
             MyLogger.Assert(this.IsFolder);
             MyLogger.Log($"Creating folder: {folder.Name} ({this.FullName})");
@@ -55,19 +55,21 @@ namespace GoogleDrive
             {
                 await cloudFolder.CreateFolderRecursivelyOnWindowsAsync(storageFolder);
             }
+            return cloudFolder;
         }
         private async Task UploadFileRecursivelyOnWindowsAsync(Windows.Storage.StorageFolder folder)
         {
             MyLogger.Assert(this.IsFolder);
-            var cloudFolder = await this.GetFolderAsync(folder.Name);
-            MyLogger.Assert(cloudFolder != null);
+            MyLogger.Assert(this.Name == folder.Name);
             foreach (var storageFile in await folder.GetFilesAsync())
             {
-                MyLogger.Log($"Uploading file: {storageFile.Name} ({cloudFolder.FullName})");
-                await cloudFolder.UploadFileAsync(await storageFile.OpenStreamForReadAsync(), storageFile.Name);
+                MyLogger.Log($"Uploading file: {storageFile.Name} ({this.FullName})");
+                await this.UploadFileAsync(await storageFile.OpenStreamForReadAsync(), storageFile.Name);
             }
             foreach (var storageFolder in await folder.GetFoldersAsync())
             {
+                var cloudFolder = await this.GetFolderAsync(storageFolder.Name);
+                MyLogger.Assert(cloudFolder != null);
                 await cloudFolder.UploadFileRecursivelyOnWindowsAsync(storageFolder);
             }
         }
@@ -115,17 +117,14 @@ namespace GoogleDrive
         public async Task<CloudFile> UploadFolderOnWindowsAsync(Windows.Storage.StorageFolder folder)
         {
             MyLogger.Assert(this.IsFolder);
-            var cloudFolders = await this.FoldersGetter().GetAllPagesAsync();
-            var cloudFolderNames = new HashSet<string>();
-            foreach (var subFolder in cloudFolders) cloudFolderNames.Add(subFolder.Name);
-            if (cloudFolderNames.Contains(folder.Name))
+            if (await this.GetFolderAsync(folder.Name)!=null)
             {
-                await MyLogger.Alert($"\"{folder.Name}\" already existed in \"{this.FullName}\"!");
-                return null;
+                if (!await MyLogger.Ask($"Folder, \"{folder.Name}\", already existed in \"{this.FullName}\"!\r\nStill want to upload?")) return null;
             }
             MyLogger.Log("Counting total size, files and folders...");
             var statistic = await CountFilesAndFoldersRecursivelyOnWindowsAsync(folder);
             MyLogger.Log($"{statistic.Item1} bytes, {statistic.Item2} files, {statistic.Item3} folders to upload");
+            CloudFile cloudFolderToUpload;
             {
                 ulong cnt = 0;
                 MyLogger.SetStatus1("Creating folders");
@@ -140,11 +139,12 @@ namespace GoogleDrive
                 FolderCreated += folderCreatedEvent;
                 try
                 {
-                    await CreateFolderRecursivelyOnWindowsAsync(folder);
+                    cloudFolderToUpload=await CreateFolderRecursivelyOnWindowsAsync(folder);
                 }
                 catch (Exception error)
                 {
                     MyLogger.Log($"Error when creating folders:\r\n{error}");
+                    return null;
                 }
                 FolderCreated -= folderCreatedEvent;
             }
@@ -173,7 +173,7 @@ namespace GoogleDrive
                 FileUploadProgressChanged += fileUploadProgressChangedEvent;
                 try
                 {
-                    await UploadFileRecursivelyOnWindowsAsync(folder);
+                    await cloudFolderToUpload.UploadFileRecursivelyOnWindowsAsync(folder);
                 }
                 catch (Exception error)
                 {
@@ -182,7 +182,7 @@ namespace GoogleDrive
                 FileUploadProgressChanged -= fileUploadProgressChangedEvent;
                 FileUploaded -= fileUploadedEvent;
             }
-            return await GetFolderAsync(folder.Name);
+            return cloudFolderToUpload;
         }
         public async Task<CloudFile> UploadFileAsync(System.IO.Stream fileStream, string fileName)
         {
@@ -271,12 +271,12 @@ namespace GoogleDrive
             MyLogger.Assert(this.IsFolder);
             return FilesGetter(false);
         }
-        public async Task<CloudFile> GetFolderAsync(string folderName)
+        public async Task<CloudFile> GetFolderAsync(string folderName,bool assertSingleFolder=true)
         {
             MyLogger.Assert(this.IsFolder);
             var ans = await FilesGetter($"'{this.Id}' in parents and trashed != true and mimeType = '{Constants.FolderMimeType}' and name = '{folderName}'").GetNextPageAsync(2);
             if (ans.Count == 0) return null;
-            MyLogger.Assert(ans.Count == 1);
+            if(assertSingleFolder) MyLogger.Assert(ans.Count == 1);
             return ans[0];
         }
         #endregion

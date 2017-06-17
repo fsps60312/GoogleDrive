@@ -9,6 +9,17 @@ namespace GoogleDrive
 {
     static class MyLogger
     {
+        public static async Task Test()
+        {
+            var picker = new Windows.Storage.Pickers.FileOpenPicker();
+            picker.FileTypeFilter.Clear();
+            picker.FileTypeFilter.Add("*");
+            var list=await picker.PickMultipleFilesAsync();
+            if (await MyLogger.Ask("Test now?"))
+            {
+                await MyLogger.Alert("Not implemented!");
+            }
+        }
         public delegate void Progress1ChangedEventHandler(double progress);
         public static event Progress1ChangedEventHandler Progress1Changed;
         public static void SetProgress1(double progress) { Progress1Changed?.Invoke(progress); }

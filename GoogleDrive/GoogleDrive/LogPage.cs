@@ -141,8 +141,7 @@ namespace GoogleDrive
                 }
                 {
                     LBstatus = new Label { Text = "Initializing..." };
-                    Grid.SetRow(LBstatus, 1);
-                    GDmain.Children.Add(LBstatus);
+                    GDmain.Children.Add(new ScrollView { Orientation = ScrollOrientation.Horizontal, Content = LBstatus }, 0, 0);
                 }
                 {
                     GDstatus1 = new Grid();
@@ -150,8 +149,7 @@ namespace GoogleDrive
                     GDstatus1.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2, GridUnitType.Star) });
                     {
                         LBstatus1 = new Label { Text = "status 1", IsVisible = false };
-                        Grid.SetColumn(LBstatus1, 0);
-                        GDstatus1.Children.Add(LBstatus1);
+                        GDstatus1.Children.Add(new ScrollView { Orientation = ScrollOrientation.Horizontal, Content = LBstatus1 }, 0, 0);
                     }
                     {
                         PBstatus1 = new ProgressBar { Progress = 0.5, IsVisible = false };
@@ -167,8 +165,7 @@ namespace GoogleDrive
                     GDstatus2.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2, GridUnitType.Star) });
                     {
                         LBstatus2 = new Label { Text = "status 2", IsVisible = false };
-                        Grid.SetColumn(LBstatus2, 0);
-                        GDstatus2.Children.Add(LBstatus2);
+                        GDstatus2.Children.Add(new ScrollView { Orientation = ScrollOrientation.Horizontal, Content = LBstatus2 }, 0, 0);
                     }
                     {
                         PBstatus2 = new ProgressBar { Progress = 0.5, IsVisible = false };
