@@ -8,29 +8,32 @@ namespace GoogleDrive
 {
     class LogPage:ContentPage
     {
-        class MyTextBox:Editor//ScrollView
+        class MyTextBox:ScrollView
         {
-            //Label LBmain;
+            StackLayout SLmain;
             public MyTextBox()
             {
-                //this.IsEnabled = false;
-                //{
-                //    LBmain = new Label() { BackgroundColor = Color.LightGoldenrodYellow };
-                //    this.Content = LBmain;
-                //}
+                this.Orientation = ScrollOrientation.Both;
+                this.SizeChanged += async delegate { await this.ScrollToEnd(); };
+                {
+                    SLmain = new StackLayout { Orientation=StackOrientation.Vertical};
+                    this.Content = SLmain;
+                }
             }
-            //public string Text
-            //{
-            //    get { return LBmain.Text; }
-            //}
+            private async Task ScrollToEnd()
+            {
+                await this.ScrollToAsync(0, double.MaxValue, true);
+                await this.ScrollToAsync(0, double.MaxValue, false);
+            }
+            int cnt = 0;
             public async Task AppendLine(string text)
             {
-                //LBmain.Text += $"{text}\r\n";
-                //await this.ScrollToAsync(LBmain, ScrollToPosition.End, true);
-                this.Text += $"{text}\r\n";
-                if (this.Text.Length > 10000) this.Text = this.Text.Substring(this.Text.Length - 10000);
-                this.Focus();
-                await Task.Delay(0);
+                StackLayout sl = new StackLayout { Orientation = StackOrientation.Horizontal };
+                sl.Children.Add(new Label { Text = $"#{++cnt}\t" });
+                sl.Children.Add(new Label { Text = $"{DateTime.Now}\t" });
+                sl.Children.Add(new Label { Text = text });
+                SLmain.Children.Add(sl);
+                await this.ScrollToEnd();
             }
         }
         public LogPage()
@@ -73,12 +76,11 @@ namespace GoogleDrive
             MainStatus = "Done.";
             await Task.Delay(0);
         }
-        int logCount = 0;
         private void RegisterEvents()
         {
             MyLogger.LogAppended += delegate (string log)
             {
-                log = $"#{++logCount}:\t{log}";
+                //log = $"#{++logCount}:\t{log}";
                 Device.BeginInvokeOnMainThread(async() =>
                 {
                     MainStatus = log;

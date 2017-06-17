@@ -169,11 +169,7 @@ namespace GoogleDrive
                             MyLogger.Assert(fileName == jsonObject.name);
                             result = jsonObject.id;
                         }
-                        //StringBuilder sb = new StringBuilder();
-                        //foreach (var key in response.Headers.AllKeys) sb.AppendLine($"{key}:{JsonConvert.SerializeObject(response.Headers[key])}");
-                        //await MyLogger.Alert(sb.ToString());
-                        //MyLogger.Assert(Array.IndexOf(response.Headers.AllKeys, "content-length") != -1);
-                        byteReceivedSoFar = fileStream.Length;// long.Parse(response.Headers["content-length"]);
+                        byteReceivedSoFar = fileStream.Length;
                         return ChunkUploadResult.Success;
                     }
                     else
