@@ -86,18 +86,20 @@ namespace GoogleDrive
                 MyLogger.Log(json);
                 long totalBytes = fileStream.Length;
                 HttpWebRequest request = WebRequest.CreateHttp("https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable");
+                var bytes = Encoding.UTF8.GetBytes(json);
                 request.Headers["Content-Type"] = "application /json; charset=UTF-8";
-                request.Headers["Content-Length"] = json.Length.ToString();
+                request.Headers["Content-Length"] = bytes.Length.ToString(); // Convert.FromBase64String(json).Length.ToString();
                 //request.Headers["X-Upload-Content-Type"]= Constants.GetMimeType(System.IO.Path.GetExtension(filePath));
                 request.Headers["X-Upload-Content-Length"] = totalBytes.ToString();
                 request.Headers["Authorization"] = "Bearer " + (await Drive.GetAccessTokenAsync());
                 request.Method = "POST";
                 using (System.IO.Stream requestStream = await request.GetRequestStreamAsync())
                 {
-                    using (System.IO.StreamWriter streamWriter = new System.IO.StreamWriter(requestStream))
-                    {
-                        await streamWriter.WriteAsync(json);
-                    }
+                    await requestStream.WriteAsync(bytes, 0, bytes.Length);
+                    //using (System.IO.StreamWriter streamWriter = new System.IO.StreamWriter(requestStream))
+                    //{
+                    //    await streamWriter.WriteAsync(json);
+                    //}
                 }
                 using (var response = await GetHttpResponseAsync(request))
                 {
