@@ -53,6 +53,7 @@ namespace GoogleDrive
                 ApplicationName = "Google Drive APIs",
             });
             Log("Service created!");
+            MyLogger.Log($"Access token: {await GetAccessTokenAsync()}");
             return await GetAccessTokenAsync();
         }
         public static async Task<DriveService> GetDriveServiceAsync()

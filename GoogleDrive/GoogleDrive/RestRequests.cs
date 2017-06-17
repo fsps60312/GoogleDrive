@@ -185,6 +185,11 @@ namespace GoogleDrive
             }
             public async Task<string> ResumeUploadAsync()
             {
+                if(resumableUri==null)
+                {
+                    MyLogger.Log("File not created, restarting upload...");
+                    return await UploadAsync(parents, fileStream, fileName);
+                }
                 indexRetry:;
                 MyLogger.Log($"Resuming... Uri: {resumableUri}");
                 var request = WebRequest.CreateHttp(resumableUri);
@@ -284,12 +289,13 @@ namespace GoogleDrive
                     return null;
                 }
             }
-            public async Task<string> UploadAsync(IList<string> parents, System.IO.Stream _fileStream, string _fileName)
+            public async Task<string> UploadAsync(IList<string> _parents, System.IO.Stream _fileStream, string _fileName)
             {
+                parents = _parents;
+                fileStream = _fileStream;
+                fileName = _fileName;
                 try
                 {
-                    fileStream = _fileStream;
-                    fileName = _fileName;
                     resumableUri = await CreateResumableUploadAsync(parents);
                     MyLogger.Assert(resumableUri.StartsWith("\"") && resumableUri.EndsWith("\""));
                     resumableUri = resumableUri.Substring(1, resumableUri.Length - 2);
@@ -302,7 +308,8 @@ namespace GoogleDrive
                 }
             }
             System.IO.Stream fileStream;
-            string result, resumableUri,fileName;
+            string result, resumableUri = null, fileName;
+            IList<string> parents;
             public delegate void ProgressChangedEventHandler(long bytesSent, long totalLength);
             public event ProgressChangedEventHandler ProgressChanged;
             private void OnProgressChanged(long bytesSent, long totalLength) { ProgressChanged?.Invoke(bytesSent, totalLength); }
