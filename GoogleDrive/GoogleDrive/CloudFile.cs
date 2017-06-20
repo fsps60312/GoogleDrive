@@ -116,6 +116,55 @@ namespace GoogleDrive
         }
         #endregion
         #region PublicMethods
+        public async Task<Windows.Storage.StorageFolder> DownloadFolderOnWindowsAsync(Windows.Storage.StorageFolder localDestinationFolder)
+        {
+            await MyLogger.Alert("Not implemented!");
+            throw new NotImplementedException();
+        }
+        public async Task<bool>DownloadFileOnWindowsAsync(Windows.Storage.StorageFile file)
+        {
+            try
+            {
+                MyLogger.Assert(!this.IsFolder);
+                MyLogger.Assert(this.Name == file.Name);
+                using (var fileStream = await file.OpenStreamForWriteAsync())
+                {
+                    var downloader = new RestRequests.Downloader();
+                    downloader.ProgressChanged += new RestRequests.ProgressChangedEventHandler((bytesSent, totalLength) =>
+                    {
+                        MyLogger.SetStatus2($"Downloading: {file.Name} ({((double)bytesSent * 100 / totalLength).ToString("F3")}%) {bytesSent}/{totalLength}");
+                        MyLogger.SetProgress2((double)bytesSent / totalLength);
+                        FileUploadProgressChanged?.Invoke(file.Name, bytesSent, totalLength);
+                    });
+                    var result = await downloader.DownloadAsync(this.Id, fileStream);
+                    indexRetry:;
+                    if (!result)
+                    {
+                        if (await MyLogger.Ask("Download failed, try again?"))
+                        {
+                            result = await downloader.ResumeDownloadAsync();
+                            goto indexRetry;
+                        }
+                        else
+                        {
+                            MyLogger.Log("Download canceled");
+                            return false;
+                        }
+                    }
+                    else
+                    {
+                        MyLogger.Log($"File download succeeded!\r\nName: {file.Name}\r\nPath: {file.Path}\r\nID: {this.Id}\r\nSize: {(await file.GetBasicPropertiesAsync()).Size} bytes");
+                        return true;
+                    }
+                }
+            }
+            catch (Exception error)
+            {
+                MyLogger.Log(error.ToString());
+                await MyLogger.Alert(error.ToString());
+                return false;
+            }
+        }
         public async Task<CloudFile> UploadFolderOnWindowsAsync(Windows.Storage.StorageFolder folder)
         {
             MyLogger.Assert(this.IsFolder);
@@ -200,7 +249,7 @@ namespace GoogleDrive
                 }
                 MyLogger.Assert(this.IsFolder);
                 var uploader = new RestRequests.Uploader();
-                uploader.ProgressChanged += new RestRequests.Uploader.ProgressChangedEventHandler((bytesSent, totalLength) =>
+                uploader.ProgressChanged += new RestRequests.ProgressChangedEventHandler((bytesSent, totalLength) =>
                 {
                     MyLogger.SetStatus2($"Uploading: {fileName} ({((double)bytesSent * 100 / totalLength).ToString("F3")}%) {bytesSent}/{totalLength}");
                     MyLogger.SetProgress2((double)bytesSent / totalLength);

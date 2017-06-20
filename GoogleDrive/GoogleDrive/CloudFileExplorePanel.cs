@@ -104,6 +104,15 @@ namespace GoogleDrive
                 FolderDepth = folderDepth;
                 FoldersGetter = cloudFolder.FoldersGetter();
                 FilesGetter = cloudFolder.FilesGetter();
+                InitializeViews();
+                RegisterEvents();
+            }
+            private void RegisterEvents()
+            {
+                BTNrefresh.Clicked += async delegate { await RefreshContent(); };
+            }
+            private void InitializeViews()
+            {
                 this.BackgroundColor = Color.LightGoldenrodYellow;
                 this.OutlineColor = Color.Accent;
                 this.Padding = new Thickness(5);
@@ -114,7 +123,6 @@ namespace GoogleDrive
                     GDmain.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Auto) });
                     {
                         BTNrefresh = new Button { Text = "Initializing...", BackgroundColor = Color.YellowGreen };
-                        BTNrefresh.Clicked += async delegate { await RefreshContent(); };
                         GDmain.Children.Add(BTNrefresh, 0, 0);
                     }
                     {
@@ -212,6 +220,7 @@ namespace GoogleDrive
             public CloudFolderStackPanel()
             {
                 InitializaControls();
+                RegisterEvents();
                 DoAsyncInitializationTasks();
             }
             private async void DoAsyncInitializationTasks()
@@ -220,6 +229,7 @@ namespace GoogleDrive
             }
             bool RemovingStacks = false;
             DateTime RemoveRequestTime = DateTime.MinValue;
+            Label LBpadding;
             private async Task PushStack(CloudFile cloudFolder)
             {
                 try
@@ -227,15 +237,13 @@ namespace GoogleDrive
                     MyLogger.Assert(cloudFolder.IsFolder);
                     CloudFolderContentPanel cfcp = new CloudFolderContentPanel(cloudFolder, Stack.Count + 1);
                     cfcp.FileClicked += delegate (CloudFileLabel label) { OnFileClicked(label); };
-                    Stack.Add(cfcp);
-                    SPpanel.Children.Add(cfcp);
                     cfcp.FileClicked += async delegate (CloudFileLabel label)
                     {
                         var removeRequestTime = DateTime.Now;
                         if (RemovingStacks)
                         {
                             MyLogger.Log("Waiting for stack removing completion...");
-                            while(RemovingStacks)await Task.Delay(100);
+                            while (RemovingStacks) await Task.Delay(100);
                             MyLogger.Log("Stack remove completed.");
                         }
                         if (removeRequestTime <= RemoveRequestTime) return;
@@ -254,9 +262,15 @@ namespace GoogleDrive
                             await PushStack(label.File);
                         }
                     };
+                    Stack.Add(cfcp);
+                    SPpanel.Children.Remove(LBpadding);
+                    SPpanel.Children.Add(cfcp);
+                    SPpanel.Children.Add(LBpadding);
                     await cfcp.RefreshContent();
-                    await SPpanel.ScrollToAsync(double.MaxValue, 0, true);
-                    await SPpanel.ScrollToAsync(double.MaxValue, 0, false);
+                    if (SPpanel.Children.Contains(cfcp)) await SPpanel.ScrollToAsync(cfcp, ScrollToPosition.Center, true);
+                    //await SPpanel.ScrollToAsync(cfcp, ScrollToPosition.Start, false);
+                    //await SPpanel.ScrollToAsync(double.MaxValue, 0, true);
+                    //await SPpanel.ScrollToAsync(double.MaxValue, 0, false);
                 }
                 catch(Exception error)
                 {
@@ -266,10 +280,21 @@ namespace GoogleDrive
             }
             public event CloudFileLabel.FileClickedEventHandler FileClicked;
             private void OnFileClicked(CloudFileLabel label) { FileClicked?.Invoke(label); }
+            private void RegisterEvents()
+            {
+                this.SizeChanged += delegate
+                 {
+                     LBpadding.WidthRequest = this.Width / 2;
+                 };
+            }
             private void InitializaControls()
             {
                 {
                     SPpanel = new MyStackPanel(ScrollOrientation.Horizontal) { BackgroundColor = Color.LightYellow };
+                    {
+                        LBpadding = new Label();
+                        SPpanel.Children.Add(LBpadding);
+                    }
                     this.Content = SPpanel;
                 }
             }

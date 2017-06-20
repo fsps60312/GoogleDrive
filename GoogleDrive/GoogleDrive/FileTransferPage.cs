@@ -49,7 +49,7 @@ namespace GoogleDrive
                             {
                                 var containingCloudFolder = fileSelected;
                                 MyLogger.Log($"Folder uploading...\r\nName: {folder.Name}\r\nIn: {containingCloudFolder.FullName}\r\nLocal: {folder.Path}");
-                                var uploadedFolder =await containingCloudFolder.UploadFolderOnWindowsAsync(folder);
+                                var uploadedFolder = await containingCloudFolder.UploadFolderOnWindowsAsync(folder);
                                 if (uploadedFolder == null)
                                 {
                                     MyLogger.Log($"Folder upload failed!\r\nName: {folder.Name}\r\nIn: {containingCloudFolder.FullName}\r\nLocal: {folder.Path}");
@@ -99,6 +99,94 @@ namespace GoogleDrive
                 }
             }
         }
+        private async Task DownloadFile()
+        {
+            if (fileSelected == null)
+            {
+                await MyLogger.Alert("Please select a cloud folder first");
+            }
+            else
+            {
+                switch (Device.RuntimePlatform)
+                {
+                    case Device.Windows:
+                        if(fileSelected.IsFolder)
+                        {
+                            var picker = new Windows.Storage.Pickers.FolderPicker()
+                            {
+                                ViewMode = Windows.Storage.Pickers.PickerViewMode.List,
+                                SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.PicturesLibrary
+                            };
+                            picker.FileTypeFilter.Clear();
+                            picker.FileTypeFilter.Add("*");
+                            var folder = await picker.PickSingleFolderAsync();
+                            if (folder != null)
+                            {
+                                var folderToDownload = fileSelected;
+                                MyLogger.Log($"Folder downloading...\r\nCloud: {folderToDownload.FullName}\r\nLocal: {folder.Path}");
+                                var downloadedFolder = await fileSelected.DownloadFolderOnWindowsAsync(folder);
+                                if (downloadedFolder == null)
+                                {
+                                    MyLogger.Log($"Folder download canceled!\r\nCloud: {folderToDownload.FullName}\r\nLocal: {folder.Path}");
+                                }
+                                else
+                                {
+                                    MyLogger.Log($"Folder download succeeded!\r\nCloud: {folderToDownload.FullName}\r\nDownloaded: {downloadedFolder.Path}");
+                                }
+                            }
+                            MyLogger.Log("All done!");
+                        }
+                        else
+                        {
+                            var picker = new Windows.Storage.Pickers.FolderPicker()
+                            {
+                                ViewMode = Windows.Storage.Pickers.PickerViewMode.List,
+                                SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.PicturesLibrary
+                            };
+                            picker.FileTypeFilter.Clear();
+                            picker.FileTypeFilter.Add("*");
+                            var folder = await picker.PickSingleFolderAsync();
+                            if (folder != null)
+                            {
+                                var fileToDownload = fileSelected;
+                                {
+                                    try
+                                    {
+                                        var existedFile = await folder.GetFileAsync(fileToDownload.Name);
+                                        MyLogger.Assert(existedFile != null);
+                                        if (await MyLogger.Ask($"\"{fileToDownload.Name}\" already existed in \"{folder.Path}\", overwrite anyway?"))
+                                        {
+                                            await existedFile.DeleteAsync();
+                                        }
+                                        else goto indexSkip;
+                                    }
+                                    catch(FileNotFoundException)
+                                    {
+                                        MyLogger.Log("File not found exception, YA!");
+                                    }
+                                }
+                                var localFile = await folder.CreateFileAsync(fileToDownload.Name);
+                                MyLogger.Log($"File downloading...\r\nCloud: {fileToDownload.FullName}\r\nLocal: {localFile.Path}");
+                                if (await fileSelected.DownloadFileOnWindowsAsync(localFile))
+                                {
+                                    MyLogger.Log($"File download succeeded!\r\nCloud: {fileToDownload.FullName}\r\nDownloaded: {localFile.Path}");
+                                }
+                                else
+                                {
+                                    MyLogger.Log($"File download canceled!\r\nCloud: {fileToDownload.FullName}\r\nLocal: {localFile.Path}");
+                                    await localFile.DeleteAsync();
+                                }
+                                indexSkip:;
+                            }
+                            MyLogger.Log("All done!");
+                        }
+                        break;
+                    default:
+                        await MyLogger.Alert($"File picker currently not supported on {Device.RuntimePlatform} devices.");
+                        break;
+                }
+            }
+        }
         void RegisterEvents()
         {
             PNcloud.SelectedFileChanged += delegate (CloudFile file)
@@ -120,7 +208,9 @@ namespace GoogleDrive
             };
             BTNdownload.Clicked += async delegate
             {
-                await MyLogger.Alert("Not implemented!");
+                BTNdownload.IsEnabled = false;
+                await DownloadFile();
+                BTNdownload.IsEnabled = true;
             };
             BTNtest.Clicked += async delegate
             {
