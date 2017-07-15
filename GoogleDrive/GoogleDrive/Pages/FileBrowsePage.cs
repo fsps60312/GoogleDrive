@@ -7,7 +7,7 @@ using Xamarin.Forms;
 
 namespace GoogleDrive
 {
-    class FileTransferPage:ContentPage
+    class FileBrowsePage:ContentPage
     {
         CloudFileExplorePanel PNcloud;
         Grid GDmain,GDcloudPanel;
@@ -15,7 +15,7 @@ namespace GoogleDrive
         Button BTNuploadFile,BTNuploadFolder, BTNdownload,BTNtest;
         Label LBselected;
         CloudFile fileSelected = null;
-        public FileTransferPage()
+        public FileBrowsePage()
         {
             InitializeControls();
             RegisterEvents();
@@ -221,7 +221,7 @@ namespace GoogleDrive
         }
         void InitializeControls()
         {
-            this.Title = "File Transfer";
+            this.Title = "File Browse";
             {
                 GDmain = new Grid();
                 GDmain.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });

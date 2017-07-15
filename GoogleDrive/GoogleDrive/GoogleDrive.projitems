@@ -12,22 +12,30 @@
     <Compile Include="$(MSBuildThisFileDirectory)App.xaml.cs">
       <DependentUpon>App.xaml</DependentUpon>
     </Compile>
-    <Compile Include="$(MSBuildThisFileDirectory)CloudFile.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)CloudFileExplorePanel.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)CloudControllers\CloudFile.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)CustomControls\CloudFileExplorePanel.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Constants.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)DoubleExtensions.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)Drive.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)FileTransferPage.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)LogPage.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)MainPage.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)MyLogger.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)MyStackPanel.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)RestRequests.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)MyControls\DirectlyUses.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)MyControls\MyContentPage.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Others\DoubleExtensions.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)CloudControllers\Drive.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Pages\FileBrowsePage.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Pages\FileTransferPage.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Pages\LogPage.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Pages\MainPage.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Others\MyLogger.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)MyControls\MyStackPanel.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)CloudControllers\RestRequests.cs" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="$(MSBuildThisFileDirectory)App.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:UpdateDesignTimeXaml</Generator>
     </EmbeddedResource>
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="$(MSBuildThisFileDirectory)CustomControls\" />
+    <Folder Include="$(MSBuildThisFileDirectory)CloudControllers\" />
+    <Folder Include="$(MSBuildThisFileDirectory)Others\" />
   </ItemGroup>
 </Project>
