@@ -13,14 +13,27 @@
       <DependentUpon>App.xaml</DependentUpon>
     </Compile>
     <Compile Include="$(MSBuildThisFileDirectory)CloudControllers\CloudFile.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)CustomControls\CloudFileExplorePanel.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)MyControls\CustomControls\CloudFileExplorePanel.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Constants.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)MyControls\DirectlyUses.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)MyControls\CustomControls\NetworkingItemBar.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)MyControls\MyAbsoluteLayout.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)MyControls\MyActivityIndicator.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)MyControls\MyButton.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)MyControls\MyContentPage.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)MyControls\MyGrid.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)MyControls\MyLabel.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)MyControls\MyProgressBar.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)MyControls\MyRelativeLayout.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)MyControls\MyScrollView.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)MyControls\MySwitch.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)MyControls\MyTabbedPage.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)MyControls\MyToolbarItem.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Others\DoubleExtensions.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)CloudControllers\Drive.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Pages\FileBrowsePage.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Pages\FileTransferPage.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Pages\FileTransferPanels\BasicStylePanel.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Pages\LogPage.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Pages\MainPage.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Others\MyLogger.cs" />
@@ -34,7 +47,7 @@
     </EmbeddedResource>
   </ItemGroup>
   <ItemGroup>
-    <Folder Include="$(MSBuildThisFileDirectory)CustomControls\" />
+    <Folder Include="$(MSBuildThisFileDirectory)MyControls\CustomControls\" />
     <Folder Include="$(MSBuildThisFileDirectory)CloudControllers\" />
     <Folder Include="$(MSBuildThisFileDirectory)Others\" />
   </ItemGroup>

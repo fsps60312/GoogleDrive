@@ -20,8 +20,13 @@ namespace GoogleDrive
             }
             {
                 PGfileTransfer = new FileTransferPage();
-                this.Children.Add(PGfileTransfer);
+                //PGfileTransfer.Icon = "StoreLogo.png";
+                this.Children.Add(new NavigationPage(PGfileTransfer) { Title = PGfileTransfer.Title });
+                //PGfileTransfer.Title = null;
             }
+            //{
+            //    this.Children.Add(new FileTransferPage { Title = "|", Icon = "StoreLogo" });
+            //}
         }
 
         LogPage PGlog;

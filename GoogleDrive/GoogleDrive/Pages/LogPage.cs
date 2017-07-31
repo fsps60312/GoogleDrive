@@ -3,17 +3,17 @@ using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
 using Xamarin.Forms;
+using GoogleDrive.MyControls;
 
 namespace GoogleDrive
 {
-    class LogPage:ContentPage
+    class LogPage:MyContentPage
     {
-        class MyTextBox:ScrollView
+        class MyTextBox:MyScrollView
         {
             StackLayout SLmain;
-            public MyTextBox()
+            public MyTextBox():base(ScrollOrientation.Both)
             {
-                this.Orientation = ScrollOrientation.Both;
                 this.SizeChanged += async delegate { await this.ScrollToEnd(); };
                 {
                     SLmain = new StackLayout { Orientation=StackOrientation.Vertical};
@@ -29,9 +29,9 @@ namespace GoogleDrive
             public async Task AppendLine(string text)
             {
                 StackLayout sl = new StackLayout { Orientation = StackOrientation.Horizontal };
-                sl.Children.Add(new Label { Text = $"#{++cnt}\t" });
-                sl.Children.Add(new Label { Text = $"{DateTime.Now}\t" });
-                sl.Children.Add(new Label { Text = text });
+                sl.Children.Add(new Label { Text = $"#{++cnt}\t", LineBreakMode = LineBreakMode.NoWrap });
+                sl.Children.Add(new Label { Text = $"{DateTime.Now}\t", LineBreakMode = LineBreakMode.NoWrap });
+                sl.Children.Add(new Label { Text = text, LineBreakMode = LineBreakMode.NoWrap });
                 SLmain.Children.Add(sl);
                 await this.ScrollToEnd();
             }
@@ -42,7 +42,7 @@ namespace GoogleDrive
                 this.Content = SLmain;
             }
         }
-        public LogPage()
+        public LogPage():base("Log")
         {
             InitializeControls();
             RegisterEvents();
@@ -142,11 +142,10 @@ namespace GoogleDrive
         }
         private void InitializeControls()
         {
-            this.Title = "Log";
             //this.Width = 1600;
             //this.Height = 900;
             {
-                GDmain = new Grid();
+                GDmain = new MyGrid();
                 GDmain.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
                 GDmain.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Auto) });
                 GDmain.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Auto) });

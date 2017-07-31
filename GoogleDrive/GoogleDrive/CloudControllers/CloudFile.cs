@@ -6,8 +6,288 @@ using Google.Apis.Drive.v3;
 
 namespace GoogleDrive
 {
+    public delegate void MessageAppendedEventHandler(string msg);
     class CloudFile
     {
+        public abstract class Networker
+        {
+            public enum NetworkStatus { NotStarted, Starting, ErrorNeedRestart, Networking, Paused, Completed };
+            public delegate void NetworkStatusChangedEventHandler();
+            public delegate void NetworkProgressChangedEventHandler(long now,long total);
+            public event MessageAppendedEventHandler MessageAppended;
+            public event NetworkStatusChangedEventHandler StatusChanged;
+            public event NetworkProgressChangedEventHandler ProgressChanged;
+            protected void OnMessageAppended(string msg) { MessageAppended?.Invoke(msg); }
+            protected void OnStatusChanged() { StatusChanged?.Invoke(); }
+            protected void OnProgressChanged(long now,long total) { ProgressChanged?.Invoke(now, total); }
+            NetworkStatus __Status__ = NetworkStatus.NotStarted;
+            public NetworkStatus Status
+            {
+                get
+                {
+                    return __Status__;
+                }
+                protected set
+                {
+                    __Status__ = value;
+                    OnStatusChanged();
+                }
+            }
+            public abstract Task ResetAsync();
+            public abstract Task PauseAsync();
+            public abstract Task StartAsync();
+        }
+        public class Uploaders
+        {
+            public class FileUploader:Networker
+            {
+                public delegate void NewUploadCreatedEventHandler(FileUploader uploader);
+                public static event NewUploadCreatedEventHandler NewUploadCreated;
+                CloudFile CloudFolder;
+                public CloudFile UploadedCloudFile
+                {
+                    get;
+                    private set;
+                }
+                string fileName;
+                public long BytesUploaded { get; private set; }
+                public long TotalFileLength { get; private set; }
+                public FileUploader(CloudFile _cloudFolder, Windows.Storage.StorageFile _windowsFile,string _fileName)
+                {
+                    CloudFolder = _cloudFolder;
+                    windowsFile = _windowsFile;
+                    fileName = _fileName;
+                    NewUploadCreated?.Invoke(this);
+                }
+                Windows.Storage.StorageFile windowsFile = null;
+                RestRequests.Uploader uploader = null;
+                System.IO.Stream fileStream = null;
+                public override async Task ResetAsync()
+                {
+                    Status = NetworkStatus.NotStarted;
+                    fileStream = await windowsFile.OpenStreamForWriteAsync();
+                    uploader = new RestRequests.Uploader(new List<string> { CloudFolder.Id }, fileStream, fileName);
+                }
+                public override async Task PauseAsync()
+                {
+                    await uploader.PauseAsync();
+                }
+                public override async Task StartAsync()
+                {
+                    switch (Status)
+                    {
+                        case NetworkStatus.ErrorNeedRestart:
+                        case NetworkStatus.NotStarted:
+                        case NetworkStatus.Paused:
+                            {
+                                if (Status != NetworkStatus.Paused)
+                                {
+                                    Status = NetworkStatus.Starting;
+                                    //MyLogger.Assert(downloader == null && windowsFile == null && fileStream == null);
+                                    fileStream = await windowsFile.OpenStreamForWriteAsync();
+                                    uploader = new RestRequests.Uploader(new List<string> { CloudFolder.Id }, fileStream, fileName);
+                                }
+                                Status = NetworkStatus.Networking;
+                                var progressChangedEventHandler = new RestRequests.ProgressChangedEventHandler((bytesProcessed, totalLength) =>
+                                {
+                                    BytesUploaded = bytesProcessed;
+                                    TotalFileLength = totalLength;
+                                    MyLogger.Assert(this.GetType() == typeof(Uploaders.FileUploader));
+                                    OnProgressChanged(BytesUploaded, TotalFileLength);
+                                });
+                                var messageAppendedEventHandler = new MessageAppendedEventHandler((msg) =>
+                                {
+                                    OnMessageAppended("Rest: " + msg);
+                                });
+                                uploader.ProgressChanged += progressChangedEventHandler;
+                                uploader.MessageAppended += messageAppendedEventHandler;
+                                await uploader.UploadAsync();
+                                uploader.ProgressChanged -= progressChangedEventHandler;
+                                uploader.MessageAppended -= messageAppendedEventHandler;
+                                uploadAgain_index:;
+                                switch (uploader.Status)
+                                {
+                                    case RestRequests.Uploader.UploadStatus.Completed:
+                                        {
+                                            UploadedCloudFile = new CloudFile(uploader.CloudFileId, fileName, false, CloudFolder);
+                                            Status = NetworkStatus.Completed;
+                                            return;
+                                        }
+                                    case RestRequests.Uploader.UploadStatus.ErrorNeedRestart:
+                                        {
+                                            OnMessageAppended("Error need restart");
+                                            Status = NetworkStatus.ErrorNeedRestart;
+                                            return;
+                                        }
+                                    case RestRequests.Uploader.UploadStatus.ErrorNeedResume:
+                                        {
+                                            OnMessageAppended("Error need resume...");
+                                            goto uploadAgain_index;
+                                        }
+                                    case RestRequests.Uploader.UploadStatus.Paused:
+                                        {
+                                            Status = NetworkStatus.Paused;
+                                            return;
+                                        }
+                                    case RestRequests.Uploader.UploadStatus.Uploading:
+                                    case RestRequests.Uploader.UploadStatus.NotStarted:
+                                    default: throw new Exception($"uploader.Status: {uploader.Status}");
+                                }
+                            }
+                        case NetworkStatus.Completed:
+                        case NetworkStatus.Networking:
+                        case NetworkStatus.Starting:
+                        default: throw new Exception($"Status: {Status}");
+                    }
+                }
+            }
+        }
+        public class Downloaders
+        {
+            public class FileDownloader:Networker
+            {
+                public delegate void NewDownloadCreatedEventHandler(FileDownloader downloader);
+                public static event NewDownloadCreatedEventHandler NewDownloadCreated;
+                const string CacheFolder = "DownloadFileCache";
+                public CloudFile CloudFile
+                {
+                    get;
+                    private set;
+                }
+                public long BytesDownloaded { get; private set; }
+                public long TotalFileLength { get; private set; }
+                public FileDownloader(CloudFile _cloudFile,Windows.Storage.StorageFile _windowsFile)
+                {
+                    CloudFile = _cloudFile;
+                    windowsFile = _windowsFile;
+                    NewDownloadCreated?.Invoke(this);
+                }
+                Windows.Storage.StorageFile windowsFile = null;
+                RestRequests.Downloader downloader = null;
+                System.IO.Stream fileStream = null;
+                private async Task<Windows.Storage.StorageFile> CreateTemporaryFile()
+                {
+                    await Task.Delay(0);
+                    return windowsFile;
+                    //var temporaryFolder = await Windows.Storage.ApplicationData.Current.LocalCacheFolder.CreateFolderAsync(CacheFolder, Windows.Storage.CreationCollisionOption.OpenIfExists);
+                    //return await temporaryFolder.CreateFileAsync(DateTime.Now.Ticks.ToString(), Windows.Storage.CreationCollisionOption.GenerateUniqueName);
+                }
+                public override async Task ResetAsync()
+                {
+                    windowsFile = await CreateTemporaryFile();
+                    fileStream = await windowsFile.OpenStreamForWriteAsync();
+                    downloader = new RestRequests.Downloader(CloudFile.Id, fileStream);
+                }
+                public override async Task PauseAsync()
+                {
+                    await downloader.PauseAsync();
+                }
+                public override async Task StartAsync()
+                {
+                    switch (Status)
+                    {
+                        case NetworkStatus.ErrorNeedRestart:
+                        case NetworkStatus.NotStarted:
+                        case NetworkStatus.Paused:
+                            {
+                                if (Status != NetworkStatus.Paused)
+                                {
+                                    Status = NetworkStatus.Starting;
+                                    //MyLogger.Assert(downloader == null && windowsFile == null && fileStream == null);
+                                    windowsFile = await CreateTemporaryFile();
+                                    fileStream = await windowsFile.OpenStreamForWriteAsync();
+                                    downloader = new RestRequests.Downloader(CloudFile.Id, fileStream);
+                                }
+                                Status = NetworkStatus.Networking;
+                                var progressChangedEventHandler = new RestRequests.ProgressChangedEventHandler((bytesProcessed, totalLength) =>
+                                  {
+                                      BytesDownloaded = bytesProcessed;
+                                      TotalFileLength = totalLength;
+                                      MyLogger.Assert(this.GetType() == typeof(Downloaders.FileDownloader));
+                                      OnProgressChanged(BytesDownloaded,TotalFileLength);
+                                  });
+                                var messageAppendedEventHandler = new MessageAppendedEventHandler((msg) =>
+                                  {
+                                      OnMessageAppended("Rest: "+msg);
+                                  });
+                                downloader.ProgressChanged += progressChangedEventHandler;
+                                downloader.MessageAppended += messageAppendedEventHandler;
+                                await downloader.DownloadAsync();
+                                downloader.ProgressChanged -= progressChangedEventHandler;
+                                downloader.MessageAppended -= messageAppendedEventHandler;
+                                downloadAgain_index:;
+                                switch (downloader.Status)
+                                {
+                                    case RestRequests.Downloader.DownloadStatus.Completed:
+                                        {
+                                            fileStream.Dispose();
+                                            Status = NetworkStatus.Completed;
+                                            return;
+                                        }
+                                    case RestRequests.Downloader.DownloadStatus.ErrorNeedRestart:
+                                        {
+                                            OnMessageAppended("Error need restart");
+                                            Status = NetworkStatus.ErrorNeedRestart;
+                                            return;
+                                        }
+                                    case RestRequests.Downloader.DownloadStatus.ErrorNeedResume:
+                                        {
+                                            OnMessageAppended("Error need resume...");
+                                            goto downloadAgain_index;
+                                        }
+                                    case RestRequests.Downloader.DownloadStatus.Paused:
+                                        {
+                                            Status = NetworkStatus.Paused;
+                                            return;
+                                        }
+                                    case RestRequests.Downloader.DownloadStatus.Downloading:
+                                    case RestRequests.Downloader.DownloadStatus.NotStarted:
+                                    default: throw new Exception($"downloader.Status: {downloader.Status}");
+                                }
+                            }
+                        case NetworkStatus.Completed:
+                        case NetworkStatus.Networking:
+                        case NetworkStatus.Starting:
+                        default: throw new Exception($"Status: {Status}");
+                    }
+                }
+            }
+            //public class Downloader
+            //{
+            //    public Windows.Storage.StorageFolder WindowsFolder
+            //    {
+            //        get;
+            //        private set;
+            //    }
+            //    public CloudFile CloudFile
+            //    {
+            //        get;
+            //        private set;
+            //    }
+            //    public DownloadStatusEnum Status
+            //    {
+            //        get;
+            //        private set;
+            //    }
+            //    public Downloader(CloudFile _cloudFile, Windows.Storage.StorageFolder _windowsFolder)
+            //    {
+            //        CloudFile = _cloudFile;
+            //        WindowsFolder = _windowsFolder;
+            //        Status = DownloadStatusEnum.NotStarted;
+            //    }
+            //    enum DownloadResult { Completed, Paused, Error, Message };
+            //    public List<string> Messages = new List<string>();
+            //    public async Task<DownloadResult> StartDownloadAsync()
+            //    {
+            //        Messages.Clear();
+            //        if (CloudFile.IsFolder) await CloudFile.DownloadFolderOnWindowsAsync(WindowsFolder);
+            //        else
+            //        {
+
+            //        }
+            //    }
+            //}
+        }
         #region Fields
         public string Id { get; private set; }
         public string Name { get; private set; }
@@ -64,9 +344,7 @@ namespace GoogleDrive
             foreach (var storageFile in await folder.GetFilesAsync())
             {
                 MyLogger.Log($"Uploading file: {storageFile.Name} ({this.FullName})");
-                var fileStream = await storageFile.OpenStreamForReadAsync();
-                await this.UploadFileAsync(fileStream, storageFile.Name);
-                fileStream.Dispose();
+                await this.UploadFileAsync(storageFile);
             }
             foreach (var storageFolder in await folder.GetFoldersAsync())
             {
@@ -118,51 +396,33 @@ namespace GoogleDrive
         #region PublicMethods
         public async Task<Windows.Storage.StorageFolder> DownloadFolderOnWindowsAsync(Windows.Storage.StorageFolder localDestinationFolder)
         {
-            await MyLogger.Alert("Not implemented!");
+            
             throw new NotImplementedException();
         }
-        public async Task<bool>DownloadFileOnWindowsAsync(Windows.Storage.StorageFile file)
+        public async Task DownloadFileOnWindowsAsync(Windows.Storage.StorageFile file)
         {
             try
             {
                 MyLogger.Assert(!this.IsFolder);
                 MyLogger.Assert(this.Name == file.Name);
-                using (var fileStream = await file.OpenStreamForWriteAsync())
-                {
-                    var downloader = new RestRequests.Downloader();
-                    downloader.ProgressChanged += new RestRequests.ProgressChangedEventHandler((bytesSent, totalLength) =>
+                var downloader = new CloudFile.Downloaders.FileDownloader(this,file);
+                downloader.MessageAppended += new MessageAppendedEventHandler((msg) =>
                     {
-                        MyLogger.SetStatus2($"Downloading: {file.Name} ({((double)bytesSent * 100 / totalLength).ToString("F3")}%) {bytesSent}/{totalLength}");
-                        MyLogger.SetProgress2((double)bytesSent / totalLength);
-                        FileUploadProgressChanged?.Invoke(file.Name, bytesSent, totalLength);
+                        MyLogger.Log(msg);
                     });
-                    var result = await downloader.DownloadAsync(this.Id, fileStream);
-                    indexRetry:;
-                    if (!result)
-                    {
-                        if (await MyLogger.Ask("Download failed, try again?"))
-                        {
-                            result = await downloader.ResumeDownloadAsync();
-                            goto indexRetry;
-                        }
-                        else
-                        {
-                            MyLogger.Log("Download canceled");
-                            return false;
-                        }
-                    }
-                    else
-                    {
-                        MyLogger.Log($"File download succeeded!\r\nName: {file.Name}\r\nPath: {file.Path}\r\nID: {this.Id}\r\nSize: {(await file.GetBasicPropertiesAsync()).Size} bytes");
-                        return true;
-                    }
-                }
+                downloader.StatusChanged += new Networker.NetworkStatusChangedEventHandler(async() =>
+                  {
+                      if (downloader.Status == Networker.NetworkStatus.Completed)
+                      {
+                          MyLogger.Log($"File download succeeded!\r\nName: {file.Name}\r\nPath: {file.Path}\r\nID: {this.Id}\r\nSize: {(await file.GetBasicPropertiesAsync()).Size} bytes");
+                      }
+                  });
+                await downloader.StartAsync();
             }
             catch (Exception error)
             {
                 MyLogger.Log(error.ToString());
                 await MyLogger.Alert(error.ToString());
-                return false;
             }
         }
         public async Task<CloudFile> UploadFolderOnWindowsAsync(Windows.Storage.StorageFolder folder)
@@ -236,46 +496,49 @@ namespace GoogleDrive
             }
             return cloudFolderToUpload;
         }
-        public async Task<CloudFile> UploadFileAsync(System.IO.Stream fileStream, string fileName)
+        public async Task<CloudFile> UploadFileAsync(Windows.Storage.StorageFile file)
         {
             try
             {
-                if (fileStream.Length == 0)
+                var fileSize = (await file.GetBasicPropertiesAsync()).Size;
+                if (fileSize == 0)
                 {
-                    var uploadedFile= await CreateEmptyFileAsync(fileName);
-                    MyLogger.Log($"File upload succeeded!\r\nName: {uploadedFile.Name}\r\nParent: {this.FullName}\r\nID: {uploadedFile.Id}\r\nSize: {fileStream.Length} bytes");
-                    MyLogger.Assert(uploadedFile.Name == fileName);
+                    var uploadedFile= await CreateEmptyFileAsync(file.Name);
+                    MyLogger.Log($"File upload succeeded!\r\nName: {uploadedFile.Name}\r\nParent: {this.FullName}\r\nID: {uploadedFile.Id}\r\nSize: {fileSize} bytes");
+                    MyLogger.Assert(uploadedFile.Name == file.Name);
                     return uploadedFile;
                 }
                 MyLogger.Assert(this.IsFolder);
-                var uploader = new RestRequests.Uploader();
-                uploader.ProgressChanged += new RestRequests.ProgressChangedEventHandler((bytesSent, totalLength) =>
-                {
-                    MyLogger.SetStatus2($"Uploading: {fileName} ({((double)bytesSent * 100 / totalLength).ToString("F3")}%) {bytesSent}/{totalLength}");
-                    MyLogger.SetProgress2((double)bytesSent / totalLength);
-                    FileUploadProgressChanged?.Invoke(fileName, bytesSent, totalLength);
-                });
-                string id = await uploader.UploadAsync(new List<string> { this.Id }, fileStream, fileName);
+                var uploader = new Uploaders.FileUploader(this, file, file.Name);
                 indexRetry:;
-                if (id == null)
+                await uploader.StartAsync();
+                switch(uploader.Status)
                 {
-                    if (await MyLogger.Ask("Upload failed, try again?"))
-                    {
-                        id = await uploader.ResumeUploadAsync();
-                        goto indexRetry;
-                    }
-                    else
-                    {
-                        MyLogger.Log("Upload canceled");
-                        return null;
-                    }
-                }
-                else
-                {
-                    MyLogger.Log($"File upload succeeded!\r\nName: {fileName}\r\nParent: {this.FullName}\r\nID: {id}\r\nSize: {fileStream.Length} bytes");
-                    var ans = new CloudFile(id, fileName, false, this);
-                    FileUploaded?.Invoke(ans, (ulong)fileStream.Length);
-                    return ans;
+                    case Networker.NetworkStatus.Completed:
+                        {
+                            MyLogger.Log($"File upload succeeded!\r\nName: {file.Name}\r\nParent: {this.FullName}\r\nID: {uploader.UploadedCloudFile.Id}\r\nSize: {fileSize} bytes");
+                            var ans = new CloudFile(uploader.UploadedCloudFile.Id, file.Name, false, this);
+                            FileUploaded?.Invoke(ans, fileSize);
+                            return ans;
+                        }
+                    case Networker.NetworkStatus.Paused:
+                        {
+                            MyLogger.Log("Upload paused");
+                            return null;
+                        }
+                    default:
+                        {
+                            if (await MyLogger.Ask("Upload failed, try again?"))
+                            {
+                                await uploader.StartAsync();
+                                goto indexRetry;
+                            }
+                            else
+                            {
+                                MyLogger.Log("Upload canceled");
+                                return null;
+                            }
+                        }
                 }
             }
             catch (Exception error)
@@ -374,7 +637,18 @@ namespace GoogleDrive
                 else Log("Getting next page...");
                 if (ListRequest.PageToken == "(END)") return null;
                 ListRequest.PageSize = pageSize;
-                var result = await ListRequest.ExecuteAsync();
+                Google.Apis.Drive.v3.Data.FileList result;
+                try
+                {
+                    result = await ListRequest.ExecuteAsync();
+                }
+                catch(Exception error)
+                {
+                    MyLogger.Log(error.ToString());
+                    await MyLogger.Alert(error.ToString());
+                    await Drive.RefreshAccessTokenAsync();
+                    return null;
+                }
                 //if (result.IncompleteSearch.HasValue && (bool)result.IncompleteSearch) await MyLogger.Alert("This is Incomplete Search");
                 var ans = new List<CloudFile>();
                 foreach (var file in result.Files)

@@ -4,10 +4,11 @@ using System.Text;
 using System.IO;
 using System.Threading.Tasks;
 using Xamarin.Forms;
+using GoogleDrive.MyControls;
 
 namespace GoogleDrive
 {
-    class FileBrowsePage:ContentPage
+    class FileBrowsePage:MyContentPage
     {
         CloudFileExplorePanel PNcloud;
         Grid GDmain,GDcloudPanel;
@@ -15,7 +16,7 @@ namespace GoogleDrive
         Button BTNuploadFile,BTNuploadFolder, BTNdownload,BTNtest;
         Label LBselected;
         CloudFile fileSelected = null;
-        public FileBrowsePage()
+        public FileBrowsePage():base("File Browse")
         {
             InitializeControls();
             RegisterEvents();
@@ -77,9 +78,7 @@ namespace GoogleDrive
                                 {
                                     var containingCloudFolder = fileSelected;
                                     MyLogger.Log($"File uploading...\r\nName: {file.Name}\r\nIn: {containingCloudFolder.FullName}\r\nLocal: {file.Path}");
-                                    var fileStream = await file.OpenStreamForReadAsync();
-                                    var uploadedFile = await containingCloudFolder.UploadFileAsync(fileStream, file.Name);
-                                    fileStream.Dispose();
+                                    var uploadedFile = await containingCloudFolder.UploadFileAsync(file);
                                     if (uploadedFile == null)
                                     {
                                         MyLogger.Log($"File upload canceled!\r\nName: {file.Name}\r\nIn: {containingCloudFolder.FullName}\r\nLocal: {file.Path}");
@@ -167,15 +166,7 @@ namespace GoogleDrive
                                 }
                                 var localFile = await folder.CreateFileAsync(fileToDownload.Name);
                                 MyLogger.Log($"File downloading...\r\nCloud: {fileToDownload.FullName}\r\nLocal: {localFile.Path}");
-                                if (await fileSelected.DownloadFileOnWindowsAsync(localFile))
-                                {
-                                    MyLogger.Log($"File download succeeded!\r\nCloud: {fileToDownload.FullName}\r\nDownloaded: {localFile.Path}");
-                                }
-                                else
-                                {
-                                    MyLogger.Log($"File download canceled!\r\nCloud: {fileToDownload.FullName}\r\nLocal: {localFile.Path}");
-                                    await localFile.DeleteAsync();
-                                }
+                                await fileSelected.DownloadFileOnWindowsAsync(localFile);
                                 indexSkip:;
                             }
                             MyLogger.Log("All done!");
@@ -221,7 +212,6 @@ namespace GoogleDrive
         }
         void InitializeControls()
         {
-            this.Title = "File Browse";
             {
                 GDmain = new Grid();
                 GDmain.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });

@@ -3,9 +3,8 @@ using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
 using Xamarin.Forms;
-using GoogleDrive.MyControls;
 
-namespace GoogleDrive
+namespace GoogleDrive.MyControls
 {
     class UnwipableContentView : ContentView
     {
@@ -14,7 +13,7 @@ namespace GoogleDrive
             this.GestureRecognizers.Add(new PinchGestureRecognizer());
         }
     }
-    class MyLabel : Button
+    class CloudFileLabelPrototype : Button
     {
         //Color preColor;
         double Add(double a, double b) { return Math.Min(1.0, Math.Max(0.0, a + b)); }
@@ -50,7 +49,7 @@ namespace GoogleDrive
                 base.BackgroundColor = value;
             }
         }
-        public MyLabel(string text)
+        public CloudFileLabelPrototype(string text)
         {
             this.Text = text;
             this.FontSize = 15;
@@ -59,7 +58,7 @@ namespace GoogleDrive
     }
     class CloudFileExplorePanel : UnwipableContentView
     {
-        class CloudFileLabel : MyLabel
+        class CloudFileLabel : CloudFileLabelPrototype
         {
             public CloudFile File { get; private set; }
             public CloudFileLabel(CloudFile file) : base(file.Name)
@@ -81,6 +80,7 @@ namespace GoogleDrive
                 {
                     this.IsEnabled = false;
                     await MyLogger.Alert($"Id: {File.Id}");
+                    MyLogger.Log(await (new RestRequests.FileGetter(File.Id)).GetFileAsync());
                     this.IsEnabled = true;
                 }
             }
@@ -95,7 +95,7 @@ namespace GoogleDrive
             ActivityIndicator PBmain;
             MyStackPanel SPcontent;
             Button BTNrefresh;
-            MyLabel LBselected = null;
+            CloudFileLabelPrototype LBselected = null;
             CloudFile.SearchListGetter FoldersGetter,FilesGetter;
             public int FolderDepth;
             public CloudFolderContentPanel(CloudFile _cloudFolder, int folderDepth)
