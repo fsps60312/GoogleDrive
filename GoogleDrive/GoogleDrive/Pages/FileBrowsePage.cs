@@ -199,9 +199,9 @@ namespace GoogleDrive
             };
             BTNdownload.Clicked += async delegate
             {
-                BTNdownload.IsEnabled = false;
+                //BTNdownload.IsEnabled = false;
                 await DownloadFile();
-                BTNdownload.IsEnabled = true;
+                //BTNdownload.IsEnabled = true;
             };
             BTNtest.Clicked += async delegate
             {

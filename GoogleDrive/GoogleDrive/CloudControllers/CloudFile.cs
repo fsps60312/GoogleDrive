@@ -37,6 +37,31 @@ namespace GoogleDrive
             public abstract Task PauseAsync();
             public abstract Task StartAsync();
         }
+        public class Modifiers
+        {
+            public class FolderCreater:Networker
+            {
+                CloudFile cloudFolder;
+                string folderName;
+                public FolderCreater(CloudFile _cloudFolder,string _folderName)
+                {
+                    cloudFolder = _cloudFolder;
+                    folderName = _folderName;
+                }
+                public override Task StartAsync()
+                {
+                    throw new NotImplementedException();
+                }
+                public override Task PauseAsync()
+                {
+                    throw new NotImplementedException();
+                }
+                public override Task ResetAsync()
+                {
+                    throw new NotImplementedException();
+                }
+            }
+        }
         public class Uploaders
         {
             public class FileUploader:Networker

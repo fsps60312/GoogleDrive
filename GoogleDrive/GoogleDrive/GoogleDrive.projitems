@@ -13,6 +13,7 @@
       <DependentUpon>App.xaml</DependentUpon>
     </Compile>
     <Compile Include="$(MSBuildThisFileDirectory)CloudControllers\CloudFile.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)MyControls\CustomControls\BarsListPanel.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)MyControls\CustomControls\CloudFileExplorePanel.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Constants.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)MyControls\DirectlyUses.cs" />
@@ -21,6 +22,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)MyControls\MyActivityIndicator.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)MyControls\MyButton.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)MyControls\MyContentPage.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)MyControls\MyContentView.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)MyControls\MyGrid.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)MyControls\MyLabel.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)MyControls\MyProgressBar.cs" />
@@ -47,7 +49,6 @@
     </EmbeddedResource>
   </ItemGroup>
   <ItemGroup>
-    <Folder Include="$(MSBuildThisFileDirectory)MyControls\CustomControls\" />
     <Folder Include="$(MSBuildThisFileDirectory)CloudControllers\" />
     <Folder Include="$(MSBuildThisFileDirectory)Others\" />
   </ItemGroup>

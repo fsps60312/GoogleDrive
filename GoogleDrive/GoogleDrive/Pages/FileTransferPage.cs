@@ -6,8 +6,16 @@ using GoogleDrive.Pages.FileTransferPanels;
 
 namespace GoogleDrive
 {
-    class FileTransferPage:BasicStylePanel
+    class FileTransferPage:MyContentPage
     {
+        public FileTransferPage():base("File Transfer")
+        {
+            this.ToolbarItems.Add(new MyToolbarItem("test1"));
+            this.ToolbarItems.Add(new MyToolbarItem("test2"));
+            this.ToolbarItems.Add(new MyToolbarItem("test3"));
+            this.ToolbarItems.Add(new MyToolbarItem("test4"));
+            this.Content = new FileTransferContentView();
+        }
         //public FileTransferPage() : base("File Transfer")
         //{
         //    this.Children.Add()
@@ -64,5 +72,13 @@ namespace GoogleDrive
         //    al.Children.Add(b);
         //    this.Content = new MyScrollView { Content = al };
         //}
+    }
+    class FileTransferContentView:GoogleDrive.MyControls.BarsListPanel.BarsListPanel<NetworkingItemBar1, CloudFileNetworkerMyDisposableVersion1>//BasicStylePanel
+    {
+        public FileTransferContentView()
+        {
+            CloudFile.Downloaders.FileDownloader.NewDownloadCreated += (networker) => { this.PushFront(new CloudFileNetworkerMyDisposableVersion1(networker)); };
+            CloudFile.Uploaders.FileUploader.NewUploadCreated += (networker) => { this.PushFront(new CloudFileNetworkerMyDisposableVersion1(networker)); };
+        }
     }
 }

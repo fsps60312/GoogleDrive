@@ -4,45 +4,58 @@ using System.Text;
 
 namespace GoogleDrive.MyControls
 {
+    class CloudFileNetworkerMyDisposableVersion1: BarsListPanel.MyDisposable
+    {
+        public CloudFile.Networker networker
+        {
+            get;
+            private set;
+        }
+        public CloudFileNetworkerMyDisposableVersion1(CloudFile.Networker _networker)
+        {
+            networker = _networker;
+            networker.StatusChanged += Networker_StatusChanged;
+        }
+        private async void Networker_StatusChanged()
+        {
+            if (networker.Status == CloudFile.Networker.NetworkStatus.Completed)
+            {
+                await System.Threading.Tasks.Task.Delay(1000);
+                OnDisposed();
+            }
+        }
+        public bool aiVisible = true,controlButtonEnabled=false,msgButtonEnabled=false;
+        public double progress = 0;
+        public string LBname, LBspeed, LBstatus, messages;
+    }
+    class NetworkingItemBar1 : NetworkingItemBar, BarsListPanel.DataBindedView<CloudFileNetworkerMyDisposableVersion1>
+    {
+        //public static object Create()
+        //{
+        //    return new NetworkingItemBar() as NetworkingItemBar1;
+        //}
+        public void Reset(CloudFileNetworkerMyDisposableVersion1 c)
+        {
+            if(networker!=null)
+            {
+                
+            }
+            networker = c?.networker;
+        }
+    }
     class NetworkingItemBar:MyGrid
     {
-        //partial class ControlButton:MyButton
-        //{
-        //    public enum StatusEnum {Initializing, Start,Pause,Message,Error,Completed}
-        //    StatusEnum __Status__;
-        //    public StatusEnum Status
-        //    {
-        //        get { return __Status__; }
-        //        set
-        //        {
-        //            __Status__ = value;
-        //            string text = "";
-        //            switch(__Status__)
-        //            {
-        //                case StatusEnum.Completed:text += "\u2714";break;
-        //                case StatusEnum.Error:text += "\u26a0";break;
-        //                case StatusEnum.Initializing:text += "\u23f0";break;
-        //                case StatusEnum.Message:text += "\u2139";break;
-        //                case StatusEnum.Pause:text += "\u23f8";break;
-        //                case StatusEnum.Start:text += "\u25b6";break;
-        //                default:throw new Exception($"__Status__: {__Status__}");
-        //            }
-        //            //text += __Status__.ToString();
-        //            this.Text = text;
-        //        }
-        //    }
-        //    int i = 0;
-        //    public ControlButton():base("Hi\u2714\u2716\u2139\u26a0\u1f6a9\u25b6\u23f0\u23f8")
-        //    {
-        //        this.Clicked += ControlButton_Clicked;
-        //        //this.WidthRequest = 150;
-        //    }
-        //    private void ControlButton_Clicked(object sender, EventArgs e)
-        //    {
-        //        Status = (StatusEnum)((i++)%6);
-        //    }
-        //}
-        CloudFile.Networker networker;
+        CloudFile.Networker __networker__=null;
+        protected CloudFile.Networker networker
+        {
+            get { return __networker__; }
+            set
+            {
+                if (__networker__ != null) UnregisterNetworker();
+                __networker__ = value;
+                if (__networker__ != null) RegisterNetworker();
+            }
+        }
         MyLabel LBname,LBspeed,LBstatus;
         MyProgressBar PBprogress;
         MyActivityIndicator AIprogress;
@@ -53,30 +66,35 @@ namespace GoogleDrive.MyControls
             status[i] = text;
             LBstatus.Text = String.Join(" ", status);
         }
-        public NetworkingItemBar(CloudFile.Networker _networker)
+        public NetworkingItemBar()
+        {
+            InitializeViews();
+        }
+        public NetworkingItemBar(CloudFile.Networker _networker) : this()
         {
             networker = _networker;
-            InitializeViews();
-            RegisterEvents();
-            RegisterNetworker();
         }
         ~NetworkingItemBar()
         {
-            UnregisterNetworker();
+            networker = null;
         }
         private void RegisterNetworker()
         {
+            Networker_StatusChanged();
+            BTNcontrol.Clicked += BTNcontrol_Clicked;
             networker.StatusChanged += Networker_StatusChanged;
             networker.ProgressChanged += Networker_ProgressChanged;
             networker.MessageAppended += Networker_MessageAppended;
         }
+        //int cnt = 0;
         private void UnregisterNetworker()
         {
+            BTNcontrol.Clicked -= BTNcontrol_Clicked;
             networker.StatusChanged -= Networker_StatusChanged;
             networker.ProgressChanged -= Networker_ProgressChanged;
             networker.MessageAppended -= Networker_MessageAppended;
         }
-        string messages = "";
+        protected string messages = "";
         private void Networker_MessageAppended(string msg)
         {
             if (!BTNmessage.IsEnabled)
@@ -101,6 +119,7 @@ namespace GoogleDrive.MyControls
 
         private void Networker_StatusChanged()
         {
+            if (networker == null) return;//Believe it or not, this is really happening! Events will still be triggered even if you had -= it.
             switch (networker.Status)
             {
                 case CloudFile.Networker.NetworkStatus.Completed:
@@ -143,10 +162,6 @@ namespace GoogleDrive.MyControls
                 default: throw new Exception($"networker.Status: {networker.Status}");
             }
             UpdateStatus(0, networker.Status.ToString());
-        }
-        private void RegisterEvents()
-        {
-            BTNcontrol.Clicked += BTNcontrol_Clicked;
         }
         private async void BTNcontrol_Clicked(object sender, EventArgs e)
         {

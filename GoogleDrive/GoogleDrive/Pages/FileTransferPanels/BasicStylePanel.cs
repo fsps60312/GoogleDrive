@@ -13,19 +13,35 @@ namespace GoogleDrive.Pages.FileTransferPanels
             this.Children.Add(new MyContentPage("Completed") { Content = new ProcessingPanel() });
         }
     }
-    class ProcessingPanel : MyScrollView
+    class ProcessingPanel : MyContentView
     {
         MyStackPanel ALmain;
-        public ProcessingPanel() : base(Xamarin.Forms.ScrollOrientation.Vertical)
+        public ProcessingPanel()
         {
+            //{
+            //    ALmain = new MyStackPanel(Xamarin.Forms.ScrollOrientation.Vertical);
+            //    this.Content = ALmain;
+            //}
             {
-                ALmain = new MyStackPanel(Xamarin.Forms.ScrollOrientation.Vertical);
-                this.Content = ALmain;
+                MyGrid g = new MyGrid();
+                g.RowDefinitions.Add(new Xamarin.Forms.RowDefinition { Height = new Xamarin.Forms.GridLength(1, Xamarin.Forms.GridUnitType.Auto) });
+                g.RowDefinitions.Add(new Xamarin.Forms.RowDefinition { Height = new Xamarin.Forms.GridLength(1, Xamarin.Forms.GridUnitType.Star) });
+                MyButton b = new MyButton("hi");
+                b.Clicked +=  delegate
+                 {
+                     MyLogger.Log(Newtonsoft.Json.JsonConvert.SerializeObject(ALmain.ScrollY));
+                 };
+                g.Children.Add(b, 0, 0);
+                g.Children.Add(ALmain = new MyStackPanel(Xamarin.Forms.ScrollOrientation.Vertical), 0, 1);
+                this.Content = g;
+                for(int i=0;i<100;i++)
+                {
+                    ALmain.Children.Add(new MyButton($"la #{i}"));
+                }
             }
             CloudFile.Downloaders.FileDownloader.NewDownloadCreated += FileDownloader_NewDownloadCreated;
             CloudFile.Uploaders.FileUploader.NewUploadCreated += FileUploader_NewUploadCreated;
         }
-
         private void FileUploader_NewUploadCreated(CloudFile.Uploaders.FileUploader uploader)
         {
             this.Children.Add(new  NetworkingItemBar(uploader));
