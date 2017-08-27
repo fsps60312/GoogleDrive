@@ -31,7 +31,7 @@ namespace GoogleDrive.MyControls.BarsListPanel
             //        if (_r != null) _r.parent = this;
             //    }
             //}
-            private TreapNode<DataType1> l = null, r = null, parent = null;
+            volatile private TreapNode<DataType1> l = null, r = null, parent = null;
             private uint priority = BitConverter.ToUInt32(Guid.NewGuid().ToByteArray(), 0);
             private double yOffset, yOffsetTag = 0;
             private DateTime animationStartTime = DateTime.MinValue, animationStartTimeTag = DateTime.MinValue;
@@ -146,7 +146,7 @@ namespace GoogleDrive.MyControls.BarsListPanel
                 {
                     b = o;
                     if (b.l != null) b.l.parent = null;
-                    Split(b.l, out a, out b.l, position);
+                    Split(b.l, out a,out b.l, position);
                     if (b.l != null) b.l.parent = b;
                     b.Maintain();
                 }
@@ -160,8 +160,8 @@ namespace GoogleDrive.MyControls.BarsListPanel
                 }
             }
         }
-        TreapNode<DataType> root = null;
-        public static double animationDuration = 1000;
+        volatile TreapNode<DataType> root = null;
+        public static double animationDuration = 500;
         public double itemHeight = 50;
         private static double AnimationOffsetRatio(double timeRatio)
         {
@@ -201,12 +201,21 @@ namespace GoogleDrive.MyControls.BarsListPanel
     }
     public abstract class MyDisposable
     {
-        public delegate void DisposedEventHandler();
-        public event DisposedEventHandler Disposed;
-        protected void OnDisposed() { Disposed?.Invoke(); }
+        public delegate void MyDisposableEventHandler();
+        public event MyDisposableEventHandler Disposed;
+        public Func<System.Threading.Tasks.Task>Disposing = null;
+        public void UnregisterDisposingEvents() { Disposing = null; }
+        protected async System.Threading.Tasks.Task OnDisposed()
+        {
+            if (Disposing != null) await Disposing();
+            Disposed?.Invoke();
+            Disposing = null; Disposed = null;
+        }
     }
+    public delegate void DataBindedViewEventHandler<T>(DataBindedView<T> sender) where T : MyDisposable;
     public interface DataBindedView<DataType> where DataType: MyDisposable
     {
+        event DataBindedViewEventHandler<DataType> Appeared;
         void Reset(DataType data);
     }
     class BarsListPanel<GenericView,DataType>:MyContentView where DataType:MyDisposable where GenericView : Xamarin.Forms.View, DataBindedView<DataType>,new()
@@ -267,25 +276,19 @@ namespace GoogleDrive.MyControls.BarsListPanel
             return r;
         }
         bool isLayoutRunning = false, needRunAgain = false;
-        private void UpdateLayout()
+        private bool UpdateLayout()
         {
-            if (isLayoutRunning)
-            {
-                needRunAgain = true;
-                return;
-            }
-            isLayoutRunning = true;
-            index_RunAgain:;
-            ALmain.AbortAnimation("animation");
-            ALmain.HeightRequest = treap.itemHeight * (treap.Count + 1);
-            LBend.TranslationY = treap.itemHeight * treap.Count;
-            MyLogger.Log($"treap.Count: {treap.Count}");
             HashSet<DataType> remain = new HashSet<DataType>();
             foreach (var p in ChildrenInUse) remain.Add(p.Key);
+            bool answer = false;
             lock (treap)
             {
                 if (treap.Count > 0)
                 {
+                    treap.Query(treap.Count - 1, new Action<Treap<DataType>.TreapNode<DataType>>((o) =>
+                    {
+                        ALmain.HeightRequest = (LBend.TranslationY = o.QueryYOffset() + treap.itemHeight) + treap.itemHeight;
+                    }));
                     int l = UponIndex(), r = DownIndex();
                     for (int i = l; i <= r; i++)
                     {
@@ -296,15 +299,21 @@ namespace GoogleDrive.MyControls.BarsListPanel
                                 ChildrenInUse[o.data].TranslationY = o.QueryYOffset();
                                 remain.Remove(o.data);
                             }
-                            else
+                            else if(!answer)
                             {
                                 var c = GetGenericView();
                                 c.TranslationY = o.QueryYOffset();
                                 c.Reset(o.data);
                                 ChildrenInUse[o.data] = c;
+                                answer = true;
                             }
                         }));
                     }
+                }
+                else
+                {
+                    LBend.TranslationY = 0;
+                    ALmain.HeightRequest = treap.itemHeight;
                 }
             }
             foreach (var d in remain)
@@ -315,24 +324,25 @@ namespace GoogleDrive.MyControls.BarsListPanel
                 v.IsVisible = false;
                 AvaiableChildrenPool.Push(v);
             }
+            return answer;
+        }
+        private void AnimateLayout()
+        {
+            if (isLayoutRunning)
+            {
+                needRunAgain = true;
+                return;
+            }
+            isLayoutRunning = true;
+            index_RunAgain:;
+            ALmain.AbortAnimation("animation");
+            //MyLogger.Log($"treap.Count: {treap.Count}");
+            bool adding = UpdateLayout();
             ALmain.Animate("animation", new Animation(new Action<double>((ratio) =>
             {
-                if (treap.Count > 0)
-                {
-                    int l = UponIndex(), r = DownIndex();
-                    for (int i = l; i <= r; i++)
-                    {
-                        treap.Query(i, new Action<Treap<DataType>.TreapNode<DataType>>((o) =>
-                        {
-                            if (ChildrenInUse.ContainsKey(o.data))
-                            {
-                                ChildrenInUse[o.data].TranslationY = o.QueryYOffset();
-                            }
-                        }));
-                    }
-                }
+                adding &= UpdateLayout();
             })), 16, (uint)Treap<DataType>.animationDuration);
-            if (needRunAgain)
+            if (adding || needRunAgain)
             {
                 needRunAgain = false;
                 goto index_RunAgain;
@@ -341,9 +351,9 @@ namespace GoogleDrive.MyControls.BarsListPanel
         }
         private void RegisterEvents()
         {
-            this.TreapLayoutChanged += () => { UpdateLayout(); };
-            SVmain.Scrolled += (sender,args) => { UpdateLayout(); };
-            SVmain.SizeChanged += (sender, args) => { UpdateLayout(); };
+            this.TreapLayoutChanged += () => { AnimateLayout(); };
+            SVmain.Scrolled += (sender,args) => { AnimateLayout(); };
+            SVmain.SizeChanged += (sender, args) => { AnimateLayout(); };
         }
         private void InitializeViews()
         {

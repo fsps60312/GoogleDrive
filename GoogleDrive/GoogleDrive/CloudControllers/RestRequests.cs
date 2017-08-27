@@ -136,6 +136,25 @@ namespace GoogleDrive
             } = null;
             public event MessageAppendedEventHandler MessageAppended;
             bool pauseRequest = false;
+            private async Task VerifyCheckSum()
+            {
+                MessageAppended?.Invoke("Calculating checksum...");
+                string cloudCheckSum = await Libraries.GetSha256ForCloudFileById(CloudFileId);
+                MessageAppended?.Invoke($"Cloud: {cloudCheckSum}");
+                fileStream.Position = 0;
+                string localCheckSum = await Libraries.GetSha256ForWindowsStorageFile(fileStream);
+                MessageAppended?.Invoke($"Local: {localCheckSum}");
+                if (cloudCheckSum == localCheckSum)
+                {
+                    MessageAppended?.Invoke("Checksum matched!");
+                    Status = UploadStatus.Completed;
+                }
+                else
+                {
+                    MessageAppended?.Invoke("Failed: Checksum not matched");
+                    Status = UploadStatus.ErrorNeedRestart;
+                }
+            }
             private async Task StartUploadAsync(long position)
             {
                 Status = UploadStatus.Uploading;
@@ -277,7 +296,7 @@ namespace GoogleDrive
                             CloudFileId = (string)jsonObject["id"];
                         }
                         byteReceivedSoFar = fileStream.Length;
-                        Status = UploadStatus.Completed;
+                        await VerifyCheckSum();
                         return;
                     }
                     else
@@ -326,7 +345,7 @@ namespace GoogleDrive
                                         CloudFileId = (string)jsonObject["id"];
                                     }
                                     response.Dispose();
-                                    Status = UploadStatus.Completed;
+                                    await VerifyCheckSum();
                                     return;
                                 }
                                 else if ((int)response.StatusCode == 308)
@@ -403,6 +422,10 @@ namespace GoogleDrive
                     case UploadStatus.ErrorNeedResume:
                     case UploadStatus.NotStarted:
                     case UploadStatus.Paused:
+                        {
+                            MyLogger.Log($"Status: {Status}, no action take to pause");
+                            return;
+                        }
                     default:
                         {
                             throw new Exception($"Status: {Status}");

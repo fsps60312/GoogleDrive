@@ -33,6 +33,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)MyControls\MyToolbarItem.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Others\DoubleExtensions.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)CloudControllers\Drive.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Others\Libraries.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Pages\FileBrowsePage.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Pages\FileTransferPage.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Pages\FileTransferPanels\BasicStylePanel.cs" />
@@ -50,6 +51,5 @@
   </ItemGroup>
   <ItemGroup>
     <Folder Include="$(MSBuildThisFileDirectory)CloudControllers\" />
-    <Folder Include="$(MSBuildThisFileDirectory)Others\" />
   </ItemGroup>
 </Project>

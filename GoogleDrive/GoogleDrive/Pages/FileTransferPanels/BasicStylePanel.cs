@@ -39,12 +39,12 @@ namespace GoogleDrive.Pages.FileTransferPanels
                     ALmain.Children.Add(new MyButton($"la #{i}"));
                 }
             }
-            CloudFile.Downloaders.FileDownloader.NewDownloadCreated += FileDownloader_NewDownloadCreated;
-            CloudFile.Uploaders.FileUploader.NewUploadCreated += FileUploader_NewUploadCreated;
+            CloudFile.Downloaders.FileDownloader.NewFileDownloadCreated += FileDownloader_NewDownloadCreated;
+            CloudFile.Uploaders.FileUploader.NewFileUploadCreated += FileUploader_NewUploadCreated;
         }
         private void FileUploader_NewUploadCreated(CloudFile.Uploaders.FileUploader uploader)
         {
-            this.Children.Add(new  NetworkingItemBar(uploader));
+            this.Children.Add(new NetworkingItemBar(new NetworkingItemBarViewModel(uploader)));
                 //Xamarin.Forms.Constraint.Constant(0),
                 //Xamarin.Forms.Constraint.Constant((cnt++) * 30),
                 //Xamarin.Forms.Constraint.RelativeToParent((parent) => parent.Width));
@@ -52,13 +52,13 @@ namespace GoogleDrive.Pages.FileTransferPanels
 
         ~ProcessingPanel()
         {
-            CloudFile.Downloaders.FileDownloader.NewDownloadCreated -= FileDownloader_NewDownloadCreated;
-            CloudFile.Uploaders.FileUploader.NewUploadCreated -= FileUploader_NewUploadCreated;
+            CloudFile.Downloaders.FileDownloader.NewFileDownloadCreated -= FileDownloader_NewDownloadCreated;
+            CloudFile.Uploaders.FileUploader.NewFileUploadCreated -= FileUploader_NewUploadCreated;
         }
         int cnt = 0;
         private void FileDownloader_NewDownloadCreated(CloudFile.Downloaders.FileDownloader downloader)
         {
-            this.Children.Add(new NetworkingItemBar(downloader));
+            this.Children.Add(new NetworkingItemBar(new NetworkingItemBarViewModel(downloader)));
                 //Xamarin.Forms.Constraint.Constant(0),
                 //Xamarin.Forms.Constraint.Constant((cnt++) * 30),
                 //Xamarin.Forms.Constraint.RelativeToParent((parent) => parent.Width));

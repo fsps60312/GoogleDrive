@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 using Google.Apis.Drive.v3;
+using System.Linq;
 
 namespace GoogleDrive
 {
@@ -11,13 +12,24 @@ namespace GoogleDrive
     {
         public abstract class Networker
         {
+            protected static volatile int __NetworkingCount__ = 0;
+            protected static int NetworkingCount
+            {
+                get { return __NetworkingCount__; }
+                set
+                {
+                    __NetworkingCount__ = value;
+                    MyLogger.Log($"NetworkingCount: {value}");
+                }
+            }
+            protected const int NetworkingMaxCount = 5;
             public enum NetworkStatus { NotStarted, Starting, ErrorNeedRestart, Networking, Paused, Completed };
             public delegate void NetworkStatusChangedEventHandler();
             public delegate void NetworkProgressChangedEventHandler(long now,long total);
             public event MessageAppendedEventHandler MessageAppended;
             public event NetworkStatusChangedEventHandler StatusChanged;
             public event NetworkProgressChangedEventHandler ProgressChanged;
-            protected void OnMessageAppended(string msg) { MessageAppended?.Invoke(msg); }
+            protected void OnMessageAppended(string msg) { messages.Add(msg); MessageAppended?.Invoke(msg); }
             protected void OnStatusChanged() { StatusChanged?.Invoke(); }
             protected void OnProgressChanged(long now,long total) { ProgressChanged?.Invoke(now, total); }
             NetworkStatus __Status__ = NetworkStatus.NotStarted;
@@ -29,10 +41,16 @@ namespace GoogleDrive
                 }
                 protected set
                 {
+                    if((__Status__==NetworkStatus.Networking)!=(value==NetworkStatus.Networking))
+                    {
+                        if (value == NetworkStatus.Networking) NetworkingCount++;
+                        else NetworkingCount--;
+                    }
                     __Status__ = value;
                     OnStatusChanged();
                 }
             }
+            public List<string> messages = new List<string>();
             public abstract Task ResetAsync();
             public abstract Task PauseAsync();
             public abstract Task StartAsync();
@@ -41,33 +59,136 @@ namespace GoogleDrive
         {
             public class FolderCreater:Networker
             {
+                public delegate void NewFolderCreateCreatedEventHandler(FolderCreater folderCreater);
+                public static event NewFolderCreateCreatedEventHandler NewFolderCreateCreated;
                 CloudFile cloudFolder;
                 string folderName;
+                public CloudFile CreatedCloudFolder { get; private set; }
                 public FolderCreater(CloudFile _cloudFolder,string _folderName)
                 {
                     cloudFolder = _cloudFolder;
                     folderName = _folderName;
+                    NewFolderCreateCreated?.Invoke(this);
                 }
-                public override Task StartAsync()
+                public override async Task StartAsync()
                 {
-                    throw new NotImplementedException();
+                    while (NetworkingCount >= NetworkingMaxCount) await Task.Delay(1000);
+                    Status = NetworkStatus.Networking;
+                    try
+                    {
+                        CreatedCloudFolder = await cloudFolder.CreateFolderAsync(folderName);
+                    }
+                    catch(Exception error)
+                    {
+                        OnMessageAppended(error.ToString());
+                        Status = NetworkStatus.ErrorNeedRestart;
+                        return;
+                    }
+                    Status = NetworkStatus.Completed;
                 }
-                public override Task PauseAsync()
+                public override async Task PauseAsync()
                 {
-                    throw new NotImplementedException();
+                    while (Status != NetworkStatus.Completed) await Task.Delay(100);
                 }
-                public override Task ResetAsync()
+                public override async Task ResetAsync()
                 {
-                    throw new NotImplementedException();
+                    await PauseAsync();
                 }
             }
         }
         public class Uploaders
         {
+            public class FolderUploader:Networker
+            {
+                public override string ToString()
+                {
+                    return $"[FU]{windowsFolder.Name}";
+                }
+                public delegate void NewFolderUploadCreatedEventHandler(FolderUploader uploader);
+                public static event NewFolderUploadCreatedEventHandler NewFolderUploadCreated;
+                CloudFile cloudFolder;
+                Windows.Storage.StorageFolder windowsFolder;
+                public CloudFile UploadedCloudFolder { get; private set; } = null;
+                public FolderUploader(CloudFile _cloudFolder,Windows.Storage.StorageFolder _windowsFolder)
+                {
+                    cloudFolder = _cloudFolder;
+                    windowsFolder = _windowsFolder;
+                    NewFolderUploadCreated?.Invoke(this);
+                }
+                HashSet<Networker> subTasks = new HashSet<Networker>();
+                public override async Task StartAsync()
+                {
+                    while (NetworkingCount >= NetworkingMaxCount) await Task.Delay(1000);
+                    switch (Status)
+                    {
+                        case NetworkStatus.NotStarted:
+                            {
+                                Status = NetworkStatus.Networking;
+                                var fc = new Modifiers.FolderCreater(cloudFolder, windowsFolder.Name);
+                                fc.StatusChanged += async delegate
+                                {
+                                    if (fc.Status == NetworkStatus.Completed)
+                                    {
+                                        OnMessageAppended("Folder created");
+                                        UploadedCloudFolder = fc.CreatedCloudFolder;
+                                        OnProgressChanged(1, 1);
+                                        NetworkingCount--;
+                                        foreach (var f in await windowsFolder.GetFilesAsync())
+                                        {
+                                            subTasks.Add(new FileUploader(fc.CreatedCloudFolder, f, f.Name));
+                                        }
+                                        foreach (var f in await windowsFolder.GetFoldersAsync())
+                                        {
+                                            subTasks.Add(new FolderUploader(fc.CreatedCloudFolder, f));
+                                        }
+                                        foreach (var st in subTasks)
+                                        {
+                                            await st.StartAsync();
+                                        }
+                                        //await Task.WhenAll(subTasks.Select(async (st) => { await st.StartAsync(); }));
+                                        NetworkingCount++;
+                                        Status = NetworkStatus.Completed;
+                                    }
+                                };
+                                OnMessageAppended("Creating folder...");
+                                await fc.StartAsync();
+                            }break;
+                        case NetworkStatus.Paused:
+                            {
+                                Status = NetworkStatus.Networking;
+                                await Task.WhenAll(subTasks.Select(async (st) => { await st.StartAsync(); }));
+                                Status = NetworkStatus.Completed;
+                            }
+                            break;
+                        default:throw new Exception($"Status: {Status}");
+                    }
+                }
+                public override async Task PauseAsync()
+                {
+                    switch(Status)
+                    {
+                        case NetworkStatus.Networking:
+                            {
+                                await Task.WhenAll(subTasks.Select(async (st) => { await st.PauseAsync(); }));
+                                Status = NetworkStatus.Paused;
+                            }break;
+                        default: throw new Exception($"Status: {Status}");
+                    }
+                }
+                public override async Task ResetAsync()
+                {
+                    await Task.Delay(1000);
+                    throw new NotImplementedException();
+                }
+            }
             public class FileUploader:Networker
             {
-                public delegate void NewUploadCreatedEventHandler(FileUploader uploader);
-                public static event NewUploadCreatedEventHandler NewUploadCreated;
+                public override string ToString()
+                {
+                    return $"[U]{fileName}";
+                }
+                public delegate void NewFileUploadCreatedEventHandler(FileUploader uploader);
+                public static event NewFileUploadCreatedEventHandler NewFileUploadCreated;
                 CloudFile CloudFolder;
                 public CloudFile UploadedCloudFile
                 {
@@ -82,16 +203,29 @@ namespace GoogleDrive
                     CloudFolder = _cloudFolder;
                     windowsFile = _windowsFile;
                     fileName = _fileName;
-                    NewUploadCreated?.Invoke(this);
+                    NewFileUploadCreated?.Invoke(this);
                 }
                 Windows.Storage.StorageFile windowsFile = null;
                 RestRequests.Uploader uploader = null;
                 System.IO.Stream fileStream = null;
                 public override async Task ResetAsync()
                 {
-                    Status = NetworkStatus.NotStarted;
-                    fileStream = await windowsFile.OpenStreamForWriteAsync();
-                    uploader = new RestRequests.Uploader(new List<string> { CloudFolder.Id }, fileStream, fileName);
+                    try
+                    {
+                        Status = NetworkStatus.NotStarted;
+                        if (fileStream != null)
+                        {
+                            fileStream.Dispose();
+                            fileStream = null;
+                        }
+                        fileStream = await windowsFile.OpenStreamForWriteAsync();
+                        uploader = new RestRequests.Uploader(new List<string> { CloudFolder.Id }, fileStream, fileName);
+                    }
+                    catch(Exception error)
+                    {
+                        OnMessageAppended($"Unexpected: {error}");
+                        Status = NetworkStatus.ErrorNeedRestart;
+                    }
                 }
                 public override async Task PauseAsync()
                 {
@@ -99,70 +233,88 @@ namespace GoogleDrive
                 }
                 public override async Task StartAsync()
                 {
-                    switch (Status)
+                    while (NetworkingCount >= NetworkingMaxCount) await Task.Delay(1000);
+                    try
                     {
-                        case NetworkStatus.ErrorNeedRestart:
-                        case NetworkStatus.NotStarted:
-                        case NetworkStatus.Paused:
-                            {
-                                if (Status != NetworkStatus.Paused)
+                        switch (Status)
+                        {
+                            case NetworkStatus.ErrorNeedRestart:
+                            case NetworkStatus.NotStarted:
+                            case NetworkStatus.Paused:
                                 {
-                                    Status = NetworkStatus.Starting;
-                                    //MyLogger.Assert(downloader == null && windowsFile == null && fileStream == null);
-                                    fileStream = await windowsFile.OpenStreamForWriteAsync();
-                                    uploader = new RestRequests.Uploader(new List<string> { CloudFolder.Id }, fileStream, fileName);
+                                    if (Status != NetworkStatus.Paused)
+                                    {
+                                        Status = NetworkStatus.Starting;
+                                        //MyLogger.Assert(downloader == null && windowsFile == null && fileStream == null);
+                                        if (fileStream != null)
+                                        {
+                                            fileStream.Dispose();
+                                            fileStream = null;
+                                        }
+                                        fileStream = await windowsFile.OpenStreamForWriteAsync();
+                                        uploader = new RestRequests.Uploader(new List<string> { CloudFolder.Id }, fileStream, fileName);
+                                    }
+                                    Status = NetworkStatus.Networking;
+                                    var progressChangedEventHandler = new RestRequests.ProgressChangedEventHandler((bytesProcessed, totalLength) =>
+                                    {
+                                        BytesUploaded = bytesProcessed;
+                                        TotalFileLength = totalLength;
+                                        MyLogger.Assert(this.GetType() == typeof(Uploaders.FileUploader));
+                                        OnProgressChanged(BytesUploaded, TotalFileLength);
+                                    });
+                                    var messageAppendedEventHandler = new MessageAppendedEventHandler((msg) =>
+                                    {
+                                        OnMessageAppended("Rest: " + msg);
+                                    });
+                                    uploader.ProgressChanged += progressChangedEventHandler;
+                                    uploader.MessageAppended += messageAppendedEventHandler;
+                                    await uploader.UploadAsync();
+                                    uploader.ProgressChanged -= progressChangedEventHandler;
+                                    uploader.MessageAppended -= messageAppendedEventHandler;
+                                    uploadAgain_index:;
+                                    switch (uploader.Status)
+                                    {
+                                        case RestRequests.Uploader.UploadStatus.Completed:
+                                            {
+                                                UploadedCloudFile = new CloudFile(uploader.CloudFileId, fileName, false, CloudFolder);
+                                                Status = NetworkStatus.Completed;
+                                                return;
+                                            }
+                                        case RestRequests.Uploader.UploadStatus.ErrorNeedRestart:
+                                            {
+                                                OnMessageAppended("Error need restart");
+                                                Status = NetworkStatus.ErrorNeedRestart;
+                                                return;
+                                            }
+                                        case RestRequests.Uploader.UploadStatus.ErrorNeedResume:
+                                            {
+                                                OnMessageAppended("Error need resume...");
+                                                goto uploadAgain_index;
+                                            }
+                                        case RestRequests.Uploader.UploadStatus.Paused:
+                                            {
+                                                Status = NetworkStatus.Paused;
+                                                return;
+                                            }
+                                        case RestRequests.Uploader.UploadStatus.Uploading:
+                                        case RestRequests.Uploader.UploadStatus.NotStarted:
+                                        default: throw new Exception($"uploader.Status: {uploader.Status}");
+                                    }
                                 }
-                                Status = NetworkStatus.Networking;
-                                var progressChangedEventHandler = new RestRequests.ProgressChangedEventHandler((bytesProcessed, totalLength) =>
+                            case NetworkStatus.Completed:
+                            case NetworkStatus.Networking:
+                            case NetworkStatus.Starting:
                                 {
-                                    BytesUploaded = bytesProcessed;
-                                    TotalFileLength = totalLength;
-                                    MyLogger.Assert(this.GetType() == typeof(Uploaders.FileUploader));
-                                    OnProgressChanged(BytesUploaded, TotalFileLength);
-                                });
-                                var messageAppendedEventHandler = new MessageAppendedEventHandler((msg) =>
-                                {
-                                    OnMessageAppended("Rest: " + msg);
-                                });
-                                uploader.ProgressChanged += progressChangedEventHandler;
-                                uploader.MessageAppended += messageAppendedEventHandler;
-                                await uploader.UploadAsync();
-                                uploader.ProgressChanged -= progressChangedEventHandler;
-                                uploader.MessageAppended -= messageAppendedEventHandler;
-                                uploadAgain_index:;
-                                switch (uploader.Status)
-                                {
-                                    case RestRequests.Uploader.UploadStatus.Completed:
-                                        {
-                                            UploadedCloudFile = new CloudFile(uploader.CloudFileId, fileName, false, CloudFolder);
-                                            Status = NetworkStatus.Completed;
-                                            return;
-                                        }
-                                    case RestRequests.Uploader.UploadStatus.ErrorNeedRestart:
-                                        {
-                                            OnMessageAppended("Error need restart");
-                                            Status = NetworkStatus.ErrorNeedRestart;
-                                            return;
-                                        }
-                                    case RestRequests.Uploader.UploadStatus.ErrorNeedResume:
-                                        {
-                                            OnMessageAppended("Error need resume...");
-                                            goto uploadAgain_index;
-                                        }
-                                    case RestRequests.Uploader.UploadStatus.Paused:
-                                        {
-                                            Status = NetworkStatus.Paused;
-                                            return;
-                                        }
-                                    case RestRequests.Uploader.UploadStatus.Uploading:
-                                    case RestRequests.Uploader.UploadStatus.NotStarted:
-                                    default: throw new Exception($"uploader.Status: {uploader.Status}");
+                                    MyLogger.Log($"Status: { Status}, no action take to start");
+                                    return;
                                 }
-                            }
-                        case NetworkStatus.Completed:
-                        case NetworkStatus.Networking:
-                        case NetworkStatus.Starting:
-                        default: throw new Exception($"Status: {Status}");
+                            default: throw new Exception($"Status: {Status}");
+                        }
+                    }
+                    catch(Exception error)
+                    {
+                        OnMessageAppended($"Unexpected: {error}");
+                        Status = NetworkStatus.ErrorNeedRestart;
                     }
                 }
             }
@@ -171,8 +323,12 @@ namespace GoogleDrive
         {
             public class FileDownloader:Networker
             {
-                public delegate void NewDownloadCreatedEventHandler(FileDownloader downloader);
-                public static event NewDownloadCreatedEventHandler NewDownloadCreated;
+                public override string ToString()
+                {
+                    return $"[D]{CloudFile.Name}";
+                }
+                public delegate void NewFileDownloadCreatedEventHandler(FileDownloader downloader);
+                public static event NewFileDownloadCreatedEventHandler NewFileDownloadCreated;
                 const string CacheFolder = "DownloadFileCache";
                 public CloudFile CloudFile
                 {
@@ -185,7 +341,7 @@ namespace GoogleDrive
                 {
                     CloudFile = _cloudFile;
                     windowsFile = _windowsFile;
-                    NewDownloadCreated?.Invoke(this);
+                    NewFileDownloadCreated?.Invoke(this);
                 }
                 Windows.Storage.StorageFile windowsFile = null;
                 RestRequests.Downloader downloader = null;
@@ -327,57 +483,49 @@ namespace GoogleDrive
             }
         }
         #endregion
-        #region Events
-        private delegate void FileUploadedEventHandler(CloudFile cloudFile, ulong fileSize);
-        private delegate void FileUploadProgressChangedEventHandler(string fileName, long bytesSent, long totalLength);
-        private delegate void FolderCreatedEventHandler(CloudFile cloudFolder);
-        private static event FileUploadedEventHandler FileUploaded;
-        private static event FileUploadProgressChangedEventHandler FileUploadProgressChanged;
-        private static event FolderCreatedEventHandler FolderCreated;
-        #endregion
         #region InnerMethods
-        private async Task<Tuple<ulong, ulong, ulong>> CountFilesAndFoldersRecursivelyOnWindowsAsync(Windows.Storage.StorageFolder folder)
-        {
-            ulong contentLength = 0, fileCount = 0, folderCount = 1;
-            var storageFiles = await folder.GetFilesAsync();
-            fileCount += (ulong)storageFiles.Count;
-            foreach (var storageFile in storageFiles) contentLength += (await storageFile.GetBasicPropertiesAsync()).Size;
-            foreach (var storageFolder in await folder.GetFoldersAsync())
-            {
-                var result = await CountFilesAndFoldersRecursivelyOnWindowsAsync(storageFolder);
-                contentLength += result.Item1;
-                fileCount += result.Item2;
-                folderCount += result.Item3;
-            }
-            return new Tuple<ulong, ulong, ulong>(contentLength, fileCount, folderCount);
-        }
-        private async Task<CloudFile> CreateFolderRecursivelyOnWindowsAsync(Windows.Storage.StorageFolder folder)
-        {
-            MyLogger.Assert(this.IsFolder);
-            MyLogger.Log($"Creating folder: {folder.Name} ({this.FullName})");
-            var cloudFolder = await this.CreateFolderAsync(folder.Name);
-            foreach (var storageFolder in await folder.GetFoldersAsync())
-            {
-                await cloudFolder.CreateFolderRecursivelyOnWindowsAsync(storageFolder);
-            }
-            return cloudFolder;
-        }
-        private async Task UploadFileRecursivelyOnWindowsAsync(Windows.Storage.StorageFolder folder)
-        {
-            MyLogger.Assert(this.IsFolder);
-            MyLogger.Assert(this.Name == folder.Name);
-            foreach (var storageFile in await folder.GetFilesAsync())
-            {
-                MyLogger.Log($"Uploading file: {storageFile.Name} ({this.FullName})");
-                await this.UploadFileAsync(storageFile);
-            }
-            foreach (var storageFolder in await folder.GetFoldersAsync())
-            {
-                var cloudFolder = await this.GetFolderAsync(storageFolder.Name);
-                MyLogger.Assert(cloudFolder != null);
-                await cloudFolder.UploadFileRecursivelyOnWindowsAsync(storageFolder);
-            }
-        }
+        //private async Task<Tuple<ulong, ulong, ulong>> CountFilesAndFoldersRecursivelyOnWindowsAsync(Windows.Storage.StorageFolder folder)
+        //{
+        //    ulong contentLength = 0, fileCount = 0, folderCount = 1;
+        //    var storageFiles = await folder.GetFilesAsync();
+        //    fileCount += (ulong)storageFiles.Count;
+        //    foreach (var storageFile in storageFiles) contentLength += (await storageFile.GetBasicPropertiesAsync()).Size;
+        //    foreach (var storageFolder in await folder.GetFoldersAsync())
+        //    {
+        //        var result = await CountFilesAndFoldersRecursivelyOnWindowsAsync(storageFolder);
+        //        contentLength += result.Item1;
+        //        fileCount += result.Item2;
+        //        folderCount += result.Item3;
+        //    }
+        //    return new Tuple<ulong, ulong, ulong>(contentLength, fileCount, folderCount);
+        //}
+        //private async Task<CloudFile> CreateFolderRecursivelyOnWindowsAsync(Windows.Storage.StorageFolder folder)
+        //{
+        //    MyLogger.Assert(this.IsFolder);
+        //    MyLogger.Log($"Creating folder: {folder.Name} ({this.FullName})");
+        //    var cloudFolder = await this.CreateFolderAsync(folder.Name);
+        //    foreach (var storageFolder in await folder.GetFoldersAsync())
+        //    {
+        //        await cloudFolder.CreateFolderRecursivelyOnWindowsAsync(storageFolder);
+        //    }
+        //    return cloudFolder;
+        //}
+        //private async Task UploadFileRecursivelyOnWindowsAsync(Windows.Storage.StorageFolder folder)
+        //{
+        //    MyLogger.Assert(this.IsFolder);
+        //    MyLogger.Assert(this.Name == folder.Name);
+        //    foreach (var storageFile in await folder.GetFilesAsync())
+        //    {
+        //        MyLogger.Log($"Uploading file: {storageFile.Name} ({this.FullName})");
+        //        await this.UploadFileAsync(storageFile);
+        //    }
+        //    foreach (var storageFolder in await folder.GetFoldersAsync())
+        //    {
+        //        var cloudFolder = await this.GetFolderAsync(storageFolder.Name);
+        //        MyLogger.Assert(cloudFolder != null);
+        //        await cloudFolder.UploadFileRecursivelyOnWindowsAsync(storageFolder);
+        //    }
+        //}
         private async Task<CloudFile> CreateEmptyFileAsync(string fileName)
         {
             MyLogger.Assert(this.IsFolder);
@@ -404,7 +552,6 @@ namespace GoogleDrive
             })(request.ExecuteAsync());
             MyLogger.Assert(result.Name == fileName);
             var ans = new CloudFile(result.Id, result.Name, false, this);
-            FileUploaded?.Invoke(ans, 0);
             return ans;
         }
         private SearchListGetter FilesGetter(bool isFolder)
@@ -421,7 +568,7 @@ namespace GoogleDrive
         #region PublicMethods
         public async Task<Windows.Storage.StorageFolder> DownloadFolderOnWindowsAsync(Windows.Storage.StorageFolder localDestinationFolder)
         {
-            
+            await Task.Delay(1000);
             throw new NotImplementedException();
         }
         public async Task DownloadFileOnWindowsAsync(Windows.Storage.StorageFile file)
@@ -457,69 +604,76 @@ namespace GoogleDrive
             {
                 if (!await MyLogger.Ask($"Folder, \"{folder.Name}\", already existed in \"{this.FullName}\"!\r\nStill want to upload?")) return null;
             }
-            MyLogger.Log("Counting total size, files and folders...");
-            var statistic = await CountFilesAndFoldersRecursivelyOnWindowsAsync(folder);
-            MyLogger.Log($"{statistic.Item1} bytes, {statistic.Item2} files, {statistic.Item3} folders to upload");
-            CloudFile cloudFolderToUpload;
+            var t = new CloudFile.Uploaders.FolderUploader(this, folder);
+            await t.StartAsync();
+            return t.UploadedCloudFolder;
+            /*old code
             {
-                ulong cnt = 0;
-                MyLogger.SetStatus1("Creating folders");
-                MyLogger.SetProgress1(0.0);
-                var folderCreatedEvent = new FolderCreatedEventHandler((lambda_folder) =>
+                MyLogger.Log("Counting total size, files and folders...");
+                var statistic = await CountFilesAndFoldersRecursivelyOnWindowsAsync(folder);
+                MyLogger.Log($"{statistic.Item1} bytes, {statistic.Item2} files, {statistic.Item3} folders to upload");
+                CloudFile cloudFolderToUpload;
                 {
-                    cnt++;
-                    double progress = (double)cnt / statistic.Item3;
-                    MyLogger.SetStatus1($"Creating folders...{(progress * 100).ToString("F3")}% ({cnt}/{statistic.Item3})");
-                    MyLogger.SetProgress1(progress);
-                });
-                FolderCreated += folderCreatedEvent;
-                try
-                {
-                    cloudFolderToUpload=await CreateFolderRecursivelyOnWindowsAsync(folder);
+                    ulong cnt = 0;
+                    MyLogger.SetStatus1("Creating folders");
+                    MyLogger.SetProgress1(0.0);
+                    var folderCreatedEvent = new FolderCreatedEventHandler((lambda_folder) =>
+                    {
+                        cnt++;
+                        double progress = (double)cnt / statistic.Item3;
+                        MyLogger.SetStatus1($"Creating folders...{(progress * 100).ToString("F3")}% ({cnt}/{statistic.Item3})");
+                        MyLogger.SetProgress1(progress);
+                    });
+                    FolderCreated += folderCreatedEvent;
+                    try
+                    {
+                        cloudFolderToUpload = await CreateFolderRecursivelyOnWindowsAsync(folder);
+                    }
+                    catch (Exception error)
+                    {
+                        MyLogger.Log($"Error when creating folders:\r\n{error}");
+                        return null;
+                    }
+                    FolderCreated -= folderCreatedEvent;
                 }
-                catch (Exception error)
                 {
-                    MyLogger.Log($"Error when creating folders:\r\n{error}");
-                    return null;
+                    ulong cntWeight = 1024;
+                    var setTotalProgress = new Action<ulong, ulong>((lambda_fileCount, lambda_uploadedSize) =>
+                       {
+                           double progress = (double)(lambda_uploadedSize + cntWeight * lambda_fileCount) / (statistic.Item1 + cntWeight * statistic.Item2);
+                           MyLogger.SetStatus1($"Uploading files...{(progress * 100).ToString("F3")}% ({lambda_fileCount}/{statistic.Item2} files) ({lambda_uploadedSize}/{statistic.Item1} bytes)");
+                           MyLogger.SetProgress1(progress);
+                       });
+                    ulong fileCount = 0, uploadedSize = 0;
+                    MyLogger.SetStatus1("Uploading files");
+                    MyLogger.SetProgress1(0.0);
+                    var fileUploadedEvent = new FileUploadedEventHandler((lambda_file, lambda_fileSize) =>
+                      {
+                          fileCount++;
+                          uploadedSize += lambda_fileSize;
+                          setTotalProgress(fileCount, uploadedSize);
+                      });
+                    var fileUploadProgressChangedEvent = new FileUploadProgressChangedEventHandler((lambda_fileName, lambda_bytesSent, lambda_totalLength) =>
+                      {
+                          setTotalProgress(fileCount, uploadedSize + (ulong)lambda_bytesSent);
+                      });
+                    FileUploaded += fileUploadedEvent;
+                    FileUploadProgressChanged += fileUploadProgressChangedEvent;
+                    try
+                    {
+                        await cloudFolderToUpload.UploadFileRecursivelyOnWindowsAsync(folder);
+                        MyLogger.Log($"Folder upload succeeded! {uploadedSize}/{statistic.Item1} bytes, {fileCount}/{statistic.Item2} files, {statistic.Item3} folders");
+                    }
+                    catch (Exception error)
+                    {
+                        MyLogger.Log($"Error when uploading files:\r\n{error}");
+                    }
+                    FileUploadProgressChanged -= fileUploadProgressChangedEvent;
+                    FileUploaded -= fileUploadedEvent;
                 }
-                FolderCreated -= folderCreatedEvent;
+                return cloudFolderToUpload;
             }
-            {
-                ulong cntWeight = 1024;
-                var setTotalProgress = new Action<ulong, ulong>((lambda_fileCount, lambda_uploadedSize) =>
-                   {
-                       double progress = (double)(lambda_uploadedSize + cntWeight * lambda_fileCount) / (statistic.Item1 + cntWeight * statistic.Item2);
-                       MyLogger.SetStatus1($"Uploading files...{(progress * 100).ToString("F3")}% ({lambda_fileCount}/{statistic.Item2} files) ({lambda_uploadedSize}/{statistic.Item1} bytes)");
-                       MyLogger.SetProgress1(progress);
-                   });
-                ulong fileCount = 0, uploadedSize = 0;
-                MyLogger.SetStatus1("Uploading files");
-                MyLogger.SetProgress1(0.0);
-                var fileUploadedEvent = new FileUploadedEventHandler((lambda_file, lambda_fileSize) =>
-                  {
-                      fileCount++;
-                      uploadedSize += lambda_fileSize;
-                      setTotalProgress(fileCount, uploadedSize);
-                  });
-                var fileUploadProgressChangedEvent = new FileUploadProgressChangedEventHandler((lambda_fileName, lambda_bytesSent, lambda_totalLength) =>
-                  {
-                      setTotalProgress(fileCount, uploadedSize + (ulong)lambda_bytesSent);
-                  });
-                FileUploaded += fileUploadedEvent;
-                FileUploadProgressChanged += fileUploadProgressChangedEvent;
-                try
-                {
-                    await cloudFolderToUpload.UploadFileRecursivelyOnWindowsAsync(folder);
-                    MyLogger.Log($"Folder upload succeeded! {uploadedSize}/{statistic.Item1} bytes, {fileCount}/{statistic.Item2} files, {statistic.Item3} folders");
-                }
-                catch (Exception error)
-                {
-                    MyLogger.Log($"Error when uploading files:\r\n{error}");
-                }
-                FileUploadProgressChanged -= fileUploadProgressChangedEvent;
-                FileUploaded -= fileUploadedEvent;
-            }
-            return cloudFolderToUpload;
+            */
         }
         public async Task<CloudFile> UploadFileAsync(Windows.Storage.StorageFile file)
         {
@@ -543,7 +697,6 @@ namespace GoogleDrive
                         {
                             MyLogger.Log($"File upload succeeded!\r\nName: {file.Name}\r\nParent: {this.FullName}\r\nID: {uploader.UploadedCloudFile.Id}\r\nSize: {fileSize} bytes");
                             var ans = new CloudFile(uploader.UploadedCloudFile.Id, file.Name, false, this);
-                            FileUploaded?.Invoke(ans, fileSize);
                             return ans;
                         }
                     case Networker.NetworkStatus.Paused:
@@ -584,22 +737,22 @@ namespace GoogleDrive
                     MimeType = Constants.FolderMimeType
                 });
             MyLogger.Log($"Creating folder... {folderName} ({this.FullName})");
-            var result = await new Func<Task<Google.Apis.Drive.v3.Data.File>, Task<Google.Apis.Drive.v3.Data.File>>((Task<Google.Apis.Drive.v3.Data.File> task) =>
-            {
-                task.ContinueWith(t =>
-                {
-                    // NotOnRanToCompletion - this code will be called if the upload fails
-                    MyLogger.Log($"Failed to create folder:\r\n{t.Exception}");
-                }, TaskContinuationOptions.NotOnRanToCompletion);
-                task.ContinueWith(t =>
-                {
-                    MyLogger.Log($"Folder created successfully: {folderName} ({this.FullName})");
-                });
-                return task;
-            })(request.ExecuteAsync());
+            var result = await request.ExecuteAsync();
+            //var result = await new Func<Task<Google.Apis.Drive.v3.Data.File>, Task<Google.Apis.Drive.v3.Data.File>>((Task<Google.Apis.Drive.v3.Data.File> task) =>
+            //{
+            //    task.ContinueWith(t =>
+            //    {
+            //        // NotOnRanToCompletion - this code will be called if the upload fails
+            //        MyLogger.Log($"Failed to create folder:\r\n{t.Exception}");
+            //    }, TaskContinuationOptions.NotOnRanToCompletion);
+            //    task.ContinueWith(t =>
+            //    {
+            //        MyLogger.Log($"Folder created successfully: {folderName} ({this.FullName})");
+            //    });
+            //    return task;
+            //})();
             MyLogger.Assert(result.Name == folderName);
             var ans = new CloudFile(result.Id, result.Name, true, this);
-            FolderCreated?.Invoke(ans);
             return ans;
         }
         public SearchListGetter FoldersGetter()

@@ -11,14 +11,6 @@ namespace GoogleDrive
     {
         public static async Task Test()
         {
-            var picker = new Windows.Storage.Pickers.FileOpenPicker();
-            picker.FileTypeFilter.Clear();
-            picker.FileTypeFilter.Add("*");
-            var list=await picker.PickMultipleFilesAsync();
-            if (await MyLogger.Ask("Test now?"))
-            {
-                await MyLogger.Alert("Not implemented!");
-            }
         }
         public delegate void Progress1ChangedEventHandler(double progress);
         public static event Progress1ChangedEventHandler Progress1Changed;
@@ -34,8 +26,7 @@ namespace GoogleDrive
         public static void SetStatus2(string status) { Status2Changed?.Invoke(status); }
         public delegate void LogAppendedEventHandler(string log);
         public static event LogAppendedEventHandler LogAppended;
-        static int cnt = 0;
-        public static void Log(string log) { System.Diagnostics.Debug.WriteLine(log); Status = log; LogAppended?.Invoke((cnt++).ToString() + log); }
+        public static void Log(string log) { System.Diagnostics.Debug.WriteLine(log); Status = log; LogAppended?.Invoke(log); }
         public static string Status { get; private set; }
         public static async Task Alert(string msg) { await App.Current.MainPage.DisplayAlert("", msg, "OK"); }
         public static async Task<bool> Ask(string msg) {return await App.Current.MainPage.DisplayAlert("", msg, "OK","Cancel"); }

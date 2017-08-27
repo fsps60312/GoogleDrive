@@ -73,12 +73,13 @@ namespace GoogleDrive
         //    this.Content = new MyScrollView { Content = al };
         //}
     }
-    class FileTransferContentView:GoogleDrive.MyControls.BarsListPanel.BarsListPanel<NetworkingItemBar1, CloudFileNetworkerMyDisposableVersion1>//BasicStylePanel
+    class FileTransferContentView:GoogleDrive.MyControls.BarsListPanel.BarsListPanel<NetworkingItemBar, NetworkingItemBarViewModel>//BasicStylePanel
     {
         public FileTransferContentView()
         {
-            CloudFile.Downloaders.FileDownloader.NewDownloadCreated += (networker) => { this.PushFront(new CloudFileNetworkerMyDisposableVersion1(networker)); };
-            CloudFile.Uploaders.FileUploader.NewUploadCreated += (networker) => { this.PushFront(new CloudFileNetworkerMyDisposableVersion1(networker)); };
+            CloudFile.Downloaders.FileDownloader.NewFileDownloadCreated += (networker) => { this.PushFront(new NetworkingItemBarViewModel(networker)); };
+            CloudFile.Uploaders.FileUploader.NewFileUploadCreated += (networker) => { this.PushFront(new NetworkingItemBarViewModel(networker)); };
+            CloudFile.Uploaders.FolderUploader.NewFolderUploadCreated += (networker) => { this.PushFront(new NetworkingItemBarViewModel(networker)); };
         }
     }
 }

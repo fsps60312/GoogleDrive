@@ -187,15 +187,15 @@ namespace GoogleDrive
             };
             BTNuploadFile.Clicked += async delegate
             {
-                BTNuploadFile.IsEnabled = false;
+                //BTNuploadFile.IsEnabled = false;
                 await UploadFile(false);
-                BTNuploadFile.IsEnabled = true;
+                //BTNuploadFile.IsEnabled = true;
             };
             BTNuploadFolder.Clicked += async delegate
             {
-                BTNuploadFolder.IsEnabled = false;
+                //BTNuploadFolder.IsEnabled = false;
                 await UploadFile(true);
-                BTNuploadFolder.IsEnabled = true;
+                //BTNuploadFolder.IsEnabled = true;
             };
             BTNdownload.Clicked += async delegate
             {
@@ -206,7 +206,14 @@ namespace GoogleDrive
             BTNtest.Clicked += async delegate
             {
                 BTNtest.IsEnabled = false;
-                await MyLogger.Test();
+                //await MyLogger.Test();
+                var picker = new Windows.Storage.Pickers.FileOpenPicker();
+                picker.FileTypeFilter.Clear();
+                picker.FileTypeFilter.Add("*");
+                var file = await picker.PickSingleFileAsync();
+                var stream = await file.OpenStreamForReadAsync();
+                string s1 = await Libraries.GetSha256ForWindowsStorageFile(stream),s2= await Libraries.GetSha256ForCloudFileById(this.fileSelected.Id);
+                await MyLogger.Alert($"{s1}\r\n{s2}\r\n{s1==s2}");
                 BTNtest.IsEnabled = true;
             };
         }
