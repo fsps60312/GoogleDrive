@@ -13,6 +13,12 @@
       <DependentUpon>App.xaml</DependentUpon>
     </Compile>
     <Compile Include="$(MSBuildThisFileDirectory)CloudControllers\CloudFile.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)CloudControllers\CloudFile.Downloaders.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)CloudControllers\CloudFile.Modifiers.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)CloudControllers\CloudFile.Networker.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)CloudControllers\CloudFile.SearchListGetter.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)CloudControllers\CloudFile.Uploaders.FileUploader.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)CloudControllers\CloudFile.Uploaders.FolderUploader.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)MyControls\CustomControls\BarsListPanel\BarsListPanel.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)MyControls\CustomControls\CloudFileExplorePanel.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Constants.cs" />
@@ -53,7 +59,6 @@
     </EmbeddedResource>
   </ItemGroup>
   <ItemGroup>
-    <Folder Include="$(MSBuildThisFileDirectory)CloudControllers\" />
     <Folder Include="$(MSBuildThisFileDirectory)MyControls\CustomControls\BarsListPanel\" />
   </ItemGroup>
 </Project>

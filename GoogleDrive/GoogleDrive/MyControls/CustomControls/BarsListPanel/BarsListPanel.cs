@@ -70,41 +70,38 @@ namespace GoogleDrive.MyControls.BarsListPanel
             MyLogger.Assert(l == r);
             return r;
         }
-        bool isLayoutRunning = false, needRunAgain = false;
+        volatile bool isLayoutRunning = false, needRunAgain = false;
         private bool UpdateLayout()
         {
             HashSet<DataType> remain = new HashSet<DataType>();
             foreach (var p in ChildrenInUse) remain.Add(p.Key);
             bool answer = false;
-            lock (treap)
+            treap.Query(treap.Count, new Action<Treap<DataType>.TreapNode>((o) =>
             {
-                treap.Query(treap.Count, new Action<Treap<DataType>.TreapNode>((o) =>
+                MyAbsoluteLayout.SetLayoutBounds(LBend, new Rectangle(0, o.QueryYOffset(), 1, -1));
+                ALmain.HeightRequest = o.QueryYOffset() + treap.itemHeight;
+            }));
+            if (treap.Count > 0)
+            {
+                int l = UponIndex(), r = DownIndex();
+                for (int i = l; i <= r; i++)
                 {
-                    MyAbsoluteLayout.SetLayoutBounds(LBend, new Rectangle(0, o.QueryYOffset(), 1, -1));
-                    ALmain.HeightRequest = o.QueryYOffset() + treap.itemHeight;
-                }));
-                if (treap.Count > 0)
-                {
-                    int l = UponIndex(), r = DownIndex();
-                    for (int i = l; i <= r; i++)
+                    treap.Query(i, new Action<Treap<DataType>.TreapNode>((o) =>
                     {
-                        treap.Query(i, new Action<Treap<DataType>.TreapNode>((o) =>
+                        if (ChildrenInUse.ContainsKey(o.data))
                         {
-                            if (ChildrenInUse.ContainsKey(o.data))
-                            {
-                                MyAbsoluteLayout.SetLayoutBounds(ChildrenInUse[o.data], new Rectangle(0, o.QueryYOffset(), 1, -1));
-                                remain.Remove(o.data);
-                            }
-                            else if (!answer)
-                            {
-                                var c = GetGenericView();
-                                MyAbsoluteLayout.SetLayoutBounds(c, new Rectangle(0, o.QueryYOffset(), 1, -1));
-                                c.Reset(o.data);
-                                ChildrenInUse[o.data] = c;
-                                answer = true;
-                            }
-                        }));
-                    }
+                            MyAbsoluteLayout.SetLayoutBounds(ChildrenInUse[o.data], new Rectangle(0, o.QueryYOffset(), 1, -1));
+                            remain.Remove(o.data);
+                        }
+                        else if (!answer)
+                        {
+                            var c = GetGenericView();
+                            MyAbsoluteLayout.SetLayoutBounds(c, new Rectangle(0, o.QueryYOffset(), 1, -1));
+                            c.Reset(o.data);
+                            ChildrenInUse[o.data] = c;
+                            answer = true;
+                        }
+                    }));
                 }
             }
             foreach (var d in remain)
@@ -125,20 +122,22 @@ namespace GoogleDrive.MyControls.BarsListPanel
                 return;
             }
             isLayoutRunning = true;
-            index_RunAgain:;
-            ALmain.AbortAnimation("animation");
+            //ALmain.AbortAnimation("animation");
             //MyLogger.Log($"treap.Count: {treap.Count}");
             bool adding = UpdateLayout();
             ALmain.Animate("animation", new Animation(new Action<double>((ratio) =>
             {
-                adding &= UpdateLayout();
-            })), 16, (uint)Treap<DataType>.animationDuration);
-            if (adding || needRunAgain)
+                adding |= UpdateLayout();
+            })), 16, (uint)Treap<DataType>.animationDuration,null,new Action<double, bool>((dv,bv)=>
             {
-                needRunAgain = false;
-                goto index_RunAgain;
-            }
-            isLayoutRunning = false;
+                adding |= UpdateLayout();
+                isLayoutRunning = false;
+                if (adding||needRunAgain)
+                {
+                    needRunAgain = false;
+                    AnimateLayout();
+                }
+            }));
         }
         private void RegisterEvents()
         {
@@ -186,6 +185,10 @@ namespace GoogleDrive.MyControls.BarsListPanel
                   MyAbsoluteLayout.SetLayoutBounds(l, new Rectangle(0, SVmain.ScrollY, -1, -1));
                   int u = UponIndex(), d = DownIndex();
                   await MyLogger.Alert($"({SVmain.ScrollY},{SVmain.ScrollY + SVmain.Height}),({u},{d}),({treap.Query(u)},{treap.Query(d)}),({l.TranslationY},{l.Y},{l.TranslationY/l.Y},{l.Bounds})");
+              });
+            MyLogger.Test3 = new Func<Task>(async () =>
+              {
+                  await MyLogger.Alert($"AnimationIsRunning: {ALmain.AnimationIsRunning("animation")}");
               });
         }
     }

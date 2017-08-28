@@ -156,6 +156,7 @@
     </SDKReference>
   </ItemGroup>
   <ItemGroup>
+    <Folder Include="CloudControllers\" />
     <Folder Include="MyControls\CustomControls\" />
   </ItemGroup>
   <PropertyGroup Condition=" '$(VisualStudioVersion)' == '' or '$(VisualStudioVersion)' &lt; '14.0' ">

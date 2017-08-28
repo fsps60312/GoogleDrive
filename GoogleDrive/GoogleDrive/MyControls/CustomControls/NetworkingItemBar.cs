@@ -26,14 +26,14 @@ namespace GoogleDrive.MyControls
         public NetworkingItemBar()
         {
             InitializeViews();
-            this.Appeared += (sender) =>
+            this.Appeared +=async (sender) =>
             {
-                this.Animate("animation", new Animation(new Action<double>((ratio) => { this.Opacity = ratio; })), 16, 500);
+                this.Opacity = 0;
+                await this.FadeTo(1, 500);
             };
             this.Disappearing = new Func<Task>( async() =>
              {
-                 this.Animate("animation", new Animation(new Action<double>((ratio) => { this.Opacity = 1.0 - ratio; })), 16, 500);
-                 await Task.Delay(500);
+                 await this.FadeTo(0, 500);
              });
         }
         public NetworkingItemBar(NetworkingItemBarViewModel source) : this()

@@ -101,7 +101,7 @@ namespace GoogleDrive
                         MyLogger.Log("Null response");
                         return null;
                     }
-                    MyLogger.Log($"Http response: {response.StatusCode} ({(int)response.StatusCode})");
+                    //MyLogger.Log($"Http response: {response.StatusCode} ({(int)response.StatusCode})");
                     if (response.StatusCode == HttpStatusCode.OK)
                     {
                         return await LogHttpWebResponse(response, true);

@@ -28,6 +28,7 @@ namespace GoogleDrive
             int cnt = 0;
             public async Task AppendLine(string text)
             {
+                if (SLmain.Children.Count > 1000) Clear();
                 StackLayout sl = new StackLayout { Orientation = StackOrientation.Horizontal };
                 sl.Children.Add(new Label { Text = $"#{++cnt}\t", LineBreakMode = LineBreakMode.NoWrap });
                 sl.Children.Add(new Label { Text = $"{DateTime.Now}\t", LineBreakMode = LineBreakMode.NoWrap });
