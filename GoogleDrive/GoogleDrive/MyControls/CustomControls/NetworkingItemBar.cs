@@ -32,10 +32,8 @@ namespace GoogleDrive.MyControls
             };
             this.Disappearing = new Func<Task>( async() =>
              {
-                 var a = DateTime.Now;
                  this.Animate("animation", new Animation(new Action<double>((ratio) => { this.Opacity = 1.0 - ratio; })), 16, 500);
-                 while (this.AnimationIsRunning("animation")) await Task.Delay(100);
-                 MyLogger.Log((DateTime.Now - a).TotalMilliseconds.ToString());
+                 await Task.Delay(500);
              });
         }
         public NetworkingItemBar(NetworkingItemBarViewModel source) : this()

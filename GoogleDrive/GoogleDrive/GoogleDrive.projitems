@@ -13,9 +13,12 @@
       <DependentUpon>App.xaml</DependentUpon>
     </Compile>
     <Compile Include="$(MSBuildThisFileDirectory)CloudControllers\CloudFile.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)MyControls\CustomControls\BarsListPanel.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)MyControls\CustomControls\BarsListPanel\BarsListPanel.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)MyControls\CustomControls\CloudFileExplorePanel.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Constants.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)MyControls\CustomControls\BarsListPanel\MyDisposable.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)MyControls\CustomControls\BarsListPanel\Treap.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)MyControls\CustomControls\BarsListPanel\Treap.TreapNode.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)MyControls\DirectlyUses.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)MyControls\CustomControls\NetworkingItemBar.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)MyControls\MyAbsoluteLayout.cs" />
@@ -51,5 +54,6 @@
   </ItemGroup>
   <ItemGroup>
     <Folder Include="$(MSBuildThisFileDirectory)CloudControllers\" />
+    <Folder Include="$(MSBuildThisFileDirectory)MyControls\CustomControls\BarsListPanel\" />
   </ItemGroup>
 </Project>
