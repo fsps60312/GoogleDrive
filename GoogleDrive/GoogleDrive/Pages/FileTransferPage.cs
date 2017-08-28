@@ -10,10 +10,18 @@ namespace GoogleDrive
     {
         public FileTransferPage():base("File Transfer")
         {
-            this.ToolbarItems.Add(new MyToolbarItem("test1"));
-            this.ToolbarItems.Add(new MyToolbarItem("test2"));
-            this.ToolbarItems.Add(new MyToolbarItem("test3"));
-            this.ToolbarItems.Add(new MyToolbarItem("test4"));
+            var test1 = new MyToolbarItem("test1");
+            var test2 = new MyToolbarItem("test2");
+            var test3 = new MyToolbarItem("test3");
+            var test4 = new MyToolbarItem("test4");
+            test1.Clicked += async delegate { await MyLogger.Test1(); };
+            test2.Clicked += async delegate { await MyLogger.Test2(); };
+            test3.Clicked += async delegate { await MyLogger.Test3(); };
+            test4.Clicked += async delegate { await MyLogger.Test4(); };
+            this.ToolbarItems.Add(test1);
+            this.ToolbarItems.Add(test2);
+            this.ToolbarItems.Add(test3);
+            this.ToolbarItems.Add(test4);
             this.Content = new FileTransferContentView();
         }
         //public FileTransferPage() : base("File Transfer")

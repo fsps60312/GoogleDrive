@@ -9,9 +9,10 @@ namespace GoogleDrive
 {
     static class MyLogger
     {
-        public static async Task Test()
-        {
-        }
+        public static Func<Task> Test1;
+        public static Func<Task> Test2;
+        public static Func<Task> Test3;
+        public static Func<Task> Test4;
         public delegate void Progress1ChangedEventHandler(double progress);
         public static event Progress1ChangedEventHandler Progress1Changed;
         public static void SetProgress1(double progress) { Progress1Changed?.Invoke(progress); }

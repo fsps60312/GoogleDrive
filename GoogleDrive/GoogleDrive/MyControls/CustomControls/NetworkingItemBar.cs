@@ -7,7 +7,7 @@ using Xamarin.Forms;
 
 namespace GoogleDrive.MyControls
 {
-    class NetworkingItemBar : MyGrid, BarsListPanel.DataBindedView<NetworkingItemBarViewModel>
+    class NetworkingItemBar : MyGrid, BarsListPanel.IDataBindedView<NetworkingItemBarViewModel>
     {
         public event BarsListPanel.DataBindedViewEventHandler<NetworkingItemBarViewModel> Appeared;
         Func<Task> Disappearing = null;

@@ -55,7 +55,6 @@ namespace GoogleDrive.Pages.FileTransferPanels
             CloudFile.Downloaders.FileDownloader.NewFileDownloadCreated -= FileDownloader_NewDownloadCreated;
             CloudFile.Uploaders.FileUploader.NewFileUploadCreated -= FileUploader_NewUploadCreated;
         }
-        int cnt = 0;
         private void FileDownloader_NewDownloadCreated(CloudFile.Downloaders.FileDownloader downloader)
         {
             this.Children.Add(new NetworkingItemBar(new NetworkingItemBarViewModel(downloader)));

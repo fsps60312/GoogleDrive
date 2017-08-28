@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using GoogleDrive.MyControls;
 using Xamarin.Forms;
+using System.Threading.Tasks;
 
 namespace GoogleDrive.MyControls.BarsListPanel
 {
@@ -212,13 +213,13 @@ namespace GoogleDrive.MyControls.BarsListPanel
             Disposing = null; Disposed = null;
         }
     }
-    public delegate void DataBindedViewEventHandler<T>(DataBindedView<T> sender) where T : MyDisposable;
-    public interface DataBindedView<DataType> where DataType: MyDisposable
+    public delegate void DataBindedViewEventHandler<T>(IDataBindedView<T> sender) where T : MyDisposable;
+    public interface IDataBindedView<DataType> where DataType: MyDisposable
     {
         event DataBindedViewEventHandler<DataType> Appeared;
         void Reset(DataType data);
     }
-    class BarsListPanel<GenericView,DataType>:MyContentView where DataType:MyDisposable where GenericView : Xamarin.Forms.View, DataBindedView<DataType>,new()
+    class BarsListPanel<GenericView,DataType>:MyContentView where DataType:MyDisposable where GenericView : Xamarin.Forms.View, IDataBindedView<DataType>,new()
     {
         Treap<DataType> treap = new Treap<DataType>();
         MyAbsoluteLayout ALmain;
@@ -287,7 +288,8 @@ namespace GoogleDrive.MyControls.BarsListPanel
                 {
                     treap.Query(treap.Count - 1, new Action<Treap<DataType>.TreapNode<DataType>>((o) =>
                     {
-                        ALmain.HeightRequest = (LBend.TranslationY = o.QueryYOffset() + treap.itemHeight) + treap.itemHeight;
+                        MyAbsoluteLayout.SetLayoutBounds(LBend, new Rectangle(0, o.QueryYOffset() + treap.itemHeight, 1, -1));
+                        ALmain.HeightRequest = o.QueryYOffset() + treap.itemHeight * 2;
                     }));
                     int l = UponIndex(), r = DownIndex();
                     for (int i = l; i <= r; i++)
@@ -296,13 +298,13 @@ namespace GoogleDrive.MyControls.BarsListPanel
                         {
                             if (ChildrenInUse.ContainsKey(o.data))
                             {
-                                ChildrenInUse[o.data].TranslationY = o.QueryYOffset();
+                                MyAbsoluteLayout.SetLayoutBounds(ChildrenInUse[o.data], new Rectangle(0, o.QueryYOffset(), 1, -1));
                                 remain.Remove(o.data);
                             }
                             else if(!answer)
                             {
                                 var c = GetGenericView();
-                                c.TranslationY = o.QueryYOffset();
+                                MyAbsoluteLayout.SetLayoutBounds(c, new Rectangle(0, o.QueryYOffset(), 1, -1));
                                 c.Reset(o.data);
                                 ChildrenInUse[o.data] = c;
                                 answer = true;
@@ -384,6 +386,18 @@ namespace GoogleDrive.MyControls.BarsListPanel
             InitializeViews();
             RegisterEvents();
             OnTreapLayoutChanged();
+            MyLogger.Test1 = new Func<Task>(async () =>
+              {
+                  var l = new MyLabel("I'm here") { BackgroundColor = Color.Red };
+                  //await l.TranslateTo(0, SVmain.ScrollY);
+                  //l.Layout(new Rectangle(0, SVmain.ScrollY, -1, -1));
+                  //MyAbsoluteLayout.SetLayoutBounds(l, new Rectangle(0, SVmain.ScrollY, -1, -1));
+                  ALmain.Children.Add(l,new Rectangle(-25,0,1,-1),AbsoluteLayoutFlags.WidthProportional);
+                  await MyLogger.Alert("wait");
+                  MyAbsoluteLayout.SetLayoutBounds(l, new Rectangle(0, SVmain.ScrollY, -1, -1));
+                  int u = UponIndex(), d = DownIndex();
+                  await MyLogger.Alert($"({SVmain.ScrollY},{SVmain.ScrollY + SVmain.Height}),({u},{d}),({treap.Query(u)},{treap.Query(d)}),({l.TranslationY},{l.Y},{l.TranslationY/l.Y},{l.Bounds})");
+              });
         }
     }
 }
