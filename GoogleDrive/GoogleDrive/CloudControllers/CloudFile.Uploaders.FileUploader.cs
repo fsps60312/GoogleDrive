@@ -93,12 +93,12 @@ namespace GoogleDrive
                                     {
                                         OnMessageAppended("Rest: " + msg);
                                     });
+                                    uploadAgain_index:;
                                     uploader.ProgressChanged += progressChangedEventHandler;
                                     uploader.MessageAppended += messageAppendedEventHandler;
                                     await uploader.UploadAsync();
                                     uploader.ProgressChanged -= progressChangedEventHandler;
                                     uploader.MessageAppended -= messageAppendedEventHandler;
-                                    uploadAgain_index:;
                                     switch (uploader.Status)
                                     {
                                         case RestRequests.Uploader.UploadStatus.Completed:

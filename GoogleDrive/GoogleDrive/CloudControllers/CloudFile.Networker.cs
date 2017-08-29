@@ -12,11 +12,11 @@ namespace GoogleDrive
             static Networker()
             {
                 //MyLogger.Test2 = new Func<Task>(async () => { await MyLogger.Alert($"NetworkingCount: {NetworkingCount}"); });
-                MyLogger.Test2 = new Func<Task>(async () =>
-                  {
-                      await Task.Delay(0);
-                      semaphoreSlim.Release();
-                  });
+                MyLogger.AddTestMethod("Release semaphoreSlim", new Func<Task>(async () =>
+                   {
+                       await Task.Delay(0);
+                       semaphoreSlim.Release();
+                   }));
             }
             //protected static volatile int __NetworkingCount__ = 0;
             //protected static int NetworkingCount
@@ -29,7 +29,7 @@ namespace GoogleDrive
             //        //MyLogger.Log($"NetworkingCount: {value}");
             //    }
             //}
-            protected const int NetworkingMaxCount = 5;
+            protected const int NetworkingMaxCount = 20;
             private volatile static SemaphoreSlim semaphoreSlim = new SemaphoreSlim(NetworkingMaxCount, NetworkingMaxCount);
             protected static async Task WaitSemaphoreSlim()
             {
@@ -42,6 +42,7 @@ namespace GoogleDrive
                     semaphoreSlim.Release();
                 }
             }
+            public bool IsBusy { get; protected set; } = false;
             //private volatile int WaitingProcessCount = 100;
             public enum NetworkStatus { NotStarted, Starting, ErrorNeedRestart, Networking, Paused, Completed };
             public delegate void NetworkStatusChangedEventHandler();
@@ -79,12 +80,14 @@ namespace GoogleDrive
                 try
                 {
                     await StartPrivateAsync();
-                    semaphoreSlim.Release();
                 }
                 catch (Exception error)
                 {
-                    semaphoreSlim.Release();
                     throw error;
+                }
+                finally
+                {
+                    semaphoreSlim.Release();
                 }
             }
             protected abstract Task StartPrivateAsync();

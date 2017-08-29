@@ -46,8 +46,9 @@ namespace GoogleDrive
                                             OnMessageAppended("Folder created");
                                             UploadedCloudFolder = fc.CreatedCloudFolder;
                                             OnProgressChanged(1, 1);
-                                        //NetworkingCount--;
-                                        foreach (var f in await windowsFolder.GetFilesAsync())
+                                            IsBusy = true;
+                                            //NetworkingCount--;
+                                            foreach (var f in await windowsFolder.GetFilesAsync())
                                             {
                                                 subTasks.Add(new FileUploader(fc.CreatedCloudFolder, f, f.Name));
                                             }
@@ -55,13 +56,14 @@ namespace GoogleDrive
                                             {
                                                 subTasks.Add(new FolderUploader(fc.CreatedCloudFolder, f));
                                             }
-                                        //foreach (var st in subTasks)
-                                        //{
-                                        //    await st.StartAsync();
-                                        //}
-                                        await Task.WhenAll(subTasks.Select(async (st) => { await st.StartAsync(); }));
-                                        //NetworkingCount++;
-                                        Status = NetworkStatus.Completed;
+                                            IsBusy = false;
+                                            //foreach (var st in subTasks)
+                                            //{
+                                            //    await st.StartAsync();
+                                            //}
+                                            await Task.WhenAll(subTasks.Select(async (st) => { await st.StartAsync(); }));
+                                            //NetworkingCount++;
+                                            Status = NetworkStatus.Completed;
                                         }
                                     };
                                     OnMessageAppended("Creating folder...");

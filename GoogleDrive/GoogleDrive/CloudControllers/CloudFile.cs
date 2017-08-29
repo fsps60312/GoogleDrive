@@ -10,6 +10,15 @@ namespace GoogleDrive
 
     partial class CloudFile
     {
+        //public class Verifiers
+        //{
+        //    public class FileVerifier : Networker
+        //    {
+        //        public FileVerifier(CloudFile cloudFile, Windows.Storage.StorageFile windowsFile)
+        //        {
+        //        }
+        //    }
+        //}
         #region Fields
         public string Id { get; private set; }
         public string Name { get; private set; }
@@ -118,12 +127,12 @@ namespace GoogleDrive
             {
                 MyLogger.Assert(!this.IsFolder);
                 MyLogger.Assert(this.Name == file.Name);
-                var downloader = new CloudFile.Downloaders.FileDownloader(this,file);
+                var downloader = new CloudFile.Downloaders.FileDownloader(this, file);
                 downloader.MessageAppended += new MessageAppendedEventHandler((msg) =>
                     {
                         MyLogger.Log(msg);
                     });
-                downloader.StatusChanged += new Networker.NetworkStatusChangedEventHandler(async() =>
+                downloader.StatusChanged += new Networker.NetworkStatusChangedEventHandler(async () =>
                   {
                       if (downloader.Status == Networker.NetworkStatus.Completed)
                       {
@@ -141,7 +150,7 @@ namespace GoogleDrive
         public async Task<CloudFile> UploadFolderOnWindowsAsync(Windows.Storage.StorageFolder folder)
         {
             MyLogger.Assert(this.IsFolder);
-            if (await this.GetFolderAsync(folder.Name)!=null)
+            if (await this.GetFolderAsync(folder.Name) != null)
             {
                 if (!await MyLogger.Ask($"Folder, \"{folder.Name}\", already existed in \"{this.FullName}\"!\r\nStill want to upload?")) return null;
             }
@@ -223,7 +232,7 @@ namespace GoogleDrive
                 var fileSize = (await file.GetBasicPropertiesAsync()).Size;
                 if (fileSize == 0)
                 {
-                    var uploadedFile= await CreateEmptyFileAsync(file.Name);
+                    var uploadedFile = await CreateEmptyFileAsync(file.Name);
                     MyLogger.Log($"File upload succeeded!\r\nName: {uploadedFile.Name}\r\nParent: {this.FullName}\r\nID: {uploadedFile.Id}\r\nSize: {fileSize} bytes");
                     MyLogger.Assert(uploadedFile.Name == file.Name);
                     return uploadedFile;
@@ -232,7 +241,7 @@ namespace GoogleDrive
                 var uploader = new Uploaders.FileUploader(this, file, file.Name);
                 indexRetry:;
                 await uploader.StartAsync();
-                switch(uploader.Status)
+                switch (uploader.Status)
                 {
                     case Networker.NetworkStatus.Completed:
                         {
@@ -270,7 +279,7 @@ namespace GoogleDrive
         public async Task<CloudFile> CreateFolderAsync(string folderName)
         {
             MyLogger.Assert(this.IsFolder);
-            var request =(await Drive.GetDriveServiceAsync()).Files.Create(
+            var request = (await Drive.GetDriveServiceAsync()).Files.Create(
                 new Google.Apis.Drive.v3.Data.File
                 {
                     Name = folderName,
@@ -306,12 +315,12 @@ namespace GoogleDrive
             MyLogger.Assert(this.IsFolder);
             return FilesGetter(false);
         }
-        public async Task<CloudFile> GetFolderAsync(string folderName,bool assertSingleFolder=true)
+        public async Task<CloudFile> GetFolderAsync(string folderName, bool assertSingleFolder = true)
         {
             MyLogger.Assert(this.IsFolder);
             var ans = await FilesGetter($"'{this.Id}' in parents and trashed != true and mimeType = '{Constants.FolderMimeType}' and name = '{folderName}'").GetNextPageAsync(2);
             if (ans.Count == 0) return null;
-            if(assertSingleFolder) MyLogger.Assert(ans.Count == 1);
+            if (assertSingleFolder) MyLogger.Assert(ans.Count == 1);
             return ans[0];
         }
         #endregion

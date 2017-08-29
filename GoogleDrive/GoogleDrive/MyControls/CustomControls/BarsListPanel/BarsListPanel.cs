@@ -174,7 +174,7 @@ namespace GoogleDrive.MyControls.BarsListPanel
             InitializeViews();
             RegisterEvents();
             OnTreapLayoutChanged();
-            MyLogger.Test1 = new Func<Task>(async () =>
+            MyLogger.AddTestMethod("Show scroll info", new Func<Task>(async () =>
               {
                   var l = new MyLabel("I'm here") { BackgroundColor = Color.Red };
                   //await l.TranslateTo(0, SVmain.ScrollY);
@@ -185,11 +185,11 @@ namespace GoogleDrive.MyControls.BarsListPanel
                   MyAbsoluteLayout.SetLayoutBounds(l, new Rectangle(0, SVmain.ScrollY, -1, -1));
                   int u = UponIndex(), d = DownIndex();
                   await MyLogger.Alert($"({SVmain.ScrollY},{SVmain.ScrollY + SVmain.Height}),({u},{d}),({treap.Query(u)},{treap.Query(d)}),({l.TranslationY},{l.Y},{l.TranslationY/l.Y},{l.Bounds})");
-              });
-            MyLogger.Test3 = new Func<Task>(async () =>
+              }));
+            MyLogger.AddTestMethod("AnimationIsRunning", new Func<Task>(async () =>
               {
                   await MyLogger.Alert($"AnimationIsRunning: {ALmain.AnimationIsRunning("animation")}");
-              });
+              }));
         }
     }
 }
