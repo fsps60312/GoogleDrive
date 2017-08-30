@@ -26,15 +26,20 @@ namespace GoogleDrive.MyControls
         public NetworkingItemBar()
         {
             InitializeViews();
+            System.Threading.SemaphoreSlim semaphoreSlim = new System.Threading.SemaphoreSlim(1, 1);
             this.Appeared +=async (sender) =>
             {
                 this.Opacity = 0;
+                await semaphoreSlim.WaitAsync();
                 await this.FadeTo(1, 500);
+                lock (semaphoreSlim) semaphoreSlim.Release();
             };
             this.Disappearing = new Func<Task>( async() =>
-             {
-                 await this.FadeTo(0, 500);
-             });
+            {
+                await semaphoreSlim.WaitAsync();
+                await this.FadeTo(0, 500);
+                lock (semaphoreSlim) semaphoreSlim.Release();
+            });
         }
         public NetworkingItemBar(NetworkingItemBarViewModel source) : this()
         {
@@ -48,8 +53,8 @@ namespace GoogleDrive.MyControls
             //    Command = new Xamarin.Forms.Command(async () => { await MyLogger.Alert("Tapped"); })
             //});
             this.ColumnDefinitions.Add(new Xamarin.Forms.ColumnDefinition { Width = new Xamarin.Forms.GridLength(1, Xamarin.Forms.GridUnitType.Auto) });
-            this.ColumnDefinitions.Add(new Xamarin.Forms.ColumnDefinition { Width = new Xamarin.Forms.GridLength(2, Xamarin.Forms.GridUnitType.Star) });
-            this.ColumnDefinitions.Add(new Xamarin.Forms.ColumnDefinition { Width = new Xamarin.Forms.GridLength(2, Xamarin.Forms.GridUnitType.Star) });
+            this.ColumnDefinitions.Add(new Xamarin.Forms.ColumnDefinition { Width = new Xamarin.Forms.GridLength(4, Xamarin.Forms.GridUnitType.Star) });
+            this.ColumnDefinitions.Add(new Xamarin.Forms.ColumnDefinition { Width = new Xamarin.Forms.GridLength(4, Xamarin.Forms.GridUnitType.Star) });
             this.ColumnDefinitions.Add(new Xamarin.Forms.ColumnDefinition { Width = new Xamarin.Forms.GridLength(1, Xamarin.Forms.GridUnitType.Star) });
             this.ColumnDefinitions.Add(new Xamarin.Forms.ColumnDefinition { Width = new Xamarin.Forms.GridLength(1, Xamarin.Forms.GridUnitType.Auto) });
             this.ColumnDefinitions.Add(new Xamarin.Forms.ColumnDefinition { Width = new Xamarin.Forms.GridLength(1, Xamarin.Forms.GridUnitType.Auto) });
@@ -331,11 +336,11 @@ namespace GoogleDrive.MyControls
                         BTNcontrol= "\u25b6";
                     }
                     break;
-                case CloudFile.Networker.NetworkStatus.Starting:
-                    {
-                        BTNcontrolEnabled = false;
-                    }
-                    break;
+                //case CloudFile.Networker.NetworkStatus.Starting:
+                //    {
+                //        BTNcontrolEnabled = false;
+                //    }
+                //    break;
                 default: throw new Exception($"networker.Status: {networker.Status}");
             }
         }

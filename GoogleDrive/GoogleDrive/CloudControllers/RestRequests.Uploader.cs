@@ -32,7 +32,7 @@ namespace GoogleDrive
             public event MessageAppendedEventHandler MessageAppended;
             bool pauseRequest = false;
             private volatile SemaphoreSlim semaphoreSlim = new SemaphoreSlim(0, 1);
-            private async Task VerifyCheckSum()
+            private async Task<UploadStatus> VerifyCheckSum()
             {
                 MessageAppended?.Invoke("Calculating checksum...");
                 string cloudCheckSum = await Libraries.GetSha256ForCloudFileById(CloudFileId);
@@ -43,12 +43,12 @@ namespace GoogleDrive
                 if (cloudCheckSum == localCheckSum)
                 {
                     MessageAppended?.Invoke("Checksum matched!");
-                    Status = UploadStatus.Completed;
+                    return UploadStatus.Completed;
                 }
                 else
                 {
                     MessageAppended?.Invoke("Failed: Checksum not matched");
-                    Status = UploadStatus.ErrorNeedRestart;
+                    return UploadStatus.ErrorNeedRestart;
                 }
             }
             private async Task StartUploadAsync(long position)
@@ -56,7 +56,7 @@ namespace GoogleDrive
                 if (pauseRequest)
                 {
                     Status = UploadStatus.Paused;
-                    semaphoreSlim.Release();
+                    lock (semaphoreSlim) semaphoreSlim.Release();
                     return;
                 }
                 Status = UploadStatus.Uploading;
@@ -84,10 +84,10 @@ namespace GoogleDrive
                     if ((DateTime.Now - startTime).TotalSeconds < 0.2) chunkSize += chunkSize / 2;
                     else chunkSize = Math.Max(MinChunkSize, chunkSize / 2);
                     //MyLogger.Log($"Sent: {i + chunkSize}/{fileStream.Length} bytes");
-                    if(pauseRequest)
+                    if (pauseRequest)
                     {
                         Status = UploadStatus.Paused;
-                        semaphoreSlim.Release();
+                        lock (semaphoreSlim) semaphoreSlim.Release();
                         return;
                     }
                 }
@@ -200,7 +200,7 @@ namespace GoogleDrive
                             CloudFileId = (string)jsonObject["id"];
                         }
                         byteReceivedSoFar = fileStream.Length;
-                        await VerifyCheckSum();
+                        Status=await VerifyCheckSum();
                         return;
                     }
                     else
@@ -216,97 +216,108 @@ namespace GoogleDrive
             #region PublicMethods
             public async Task UploadAsync()
             {
-                switch (Status)
+                try
                 {
-                    case UploadStatus.ErrorNeedResume:
-                    case UploadStatus.Paused:
-                        {
-                            MyLogger.Assert(resumableUri != null);
-                            //indexRetry:;
-                            MessageAppended?.Invoke($"Resuming... Uri: {resumableUri}");
-                            var request = WebRequest.CreateHttp(resumableUri);
-                            request.Headers["Content-Length"] = "0";
-                            request.Headers["Content-Range"] = $"bytes */{fileStream.Length}";
-                            request.Method = "PUT";
-                            using (var response = await GetHttpResponseAsync(request))
+                    switch (Status)
+                    {
+                        case UploadStatus.ErrorNeedResume:
+                        case UploadStatus.Paused:
                             {
-                                if (response == null)
+                                MyLogger.Assert(resumableUri != null);
+                                //indexRetry:;
+                                MessageAppended?.Invoke($"Resuming... Uri: {resumableUri}");
+                                var request = WebRequest.CreateHttp(resumableUri);
+                                request.Headers["Content-Length"] = "0";
+                                request.Headers["Content-Range"] = $"bytes */{fileStream.Length}";
+                                request.Method = "PUT";
+                                using (var response = await GetHttpResponseAsync(request))
                                 {
-                                    MyLogger.Log("c");
-                                    MessageAppended?.Invoke("Null response");
-                                    Status = UploadStatus.ErrorNeedResume;
-                                    return;
-                                }
-                                MessageAppended?.Invoke($"Http response: {response.StatusCode} ({response.StatusCode})");
-                                if (response.StatusCode == HttpStatusCode.OK || response.StatusCode == HttpStatusCode.Created)
-                                {
-                                    MessageAppended?.Invoke("The upload was already completed");
-                                    MessageAppended?.Invoke(await LogHttpWebResponse(response, false));
-                                    using (var reader = new System.IO.StreamReader(response.GetResponseStream()))
+                                    if (response == null)
                                     {
-                                        var data = await reader.ReadToEndAsync();
-                                        var jsonObject = JsonConvert.DeserializeObject<Newtonsoft.Json.Linq.JObject>(data);
-                                        MyLogger.Assert(fileName == (string)jsonObject["name"]);
-                                        CloudFileId = (string)jsonObject["id"];
+                                        MyLogger.Log("c");
+                                        MessageAppended?.Invoke("Null response");
+                                        Status = UploadStatus.ErrorNeedResume;
+                                        return;
                                     }
-                                    response.Dispose();
-                                    await VerifyCheckSum();
-                                    return;
-                                }
-                                else if ((int)response.StatusCode == 308)
-                                {
-                                    long position;
-                                    if (Array.IndexOf(response.Headers.AllKeys, "range") == -1)
+                                    MessageAppended?.Invoke($"Http response: {response.StatusCode} ({response.StatusCode})");
+                                    if (response.StatusCode == HttpStatusCode.OK || response.StatusCode == HttpStatusCode.Created)
                                     {
-                                        MessageAppended?.Invoke("No bytes have been received by the server yet, starting from the first byte...");
-                                        position = 0;
+                                        MessageAppended?.Invoke("The upload was already completed");
+                                        MessageAppended?.Invoke(await LogHttpWebResponse(response, false));
+                                        using (var reader = new System.IO.StreamReader(response.GetResponseStream()))
+                                        {
+                                            var data = await reader.ReadToEndAsync();
+                                            var jsonObject = JsonConvert.DeserializeObject<Newtonsoft.Json.Linq.JObject>(data);
+                                            MyLogger.Assert(fileName == (string)jsonObject["name"]);
+                                            CloudFileId = (string)jsonObject["id"];
+                                        }
+                                        response.Dispose();
+                                        Status=await VerifyCheckSum();
+                                        return;
+                                    }
+                                    else if ((int)response.StatusCode == 308)
+                                    {
+                                        long position;
+                                        if (Array.IndexOf(response.Headers.AllKeys, "range") == -1)
+                                        {
+                                            MessageAppended?.Invoke("No bytes have been received by the server yet, starting from the first byte...");
+                                            position = 0;
+                                        }
+                                        else
+                                        {
+                                            //bytes=0-42
+                                            string s = response.Headers["range"];
+                                            MessageAppended?.Invoke($"Range received by server: {s}");
+                                            string pattern = "bytes=0-";
+                                            MyLogger.Assert(s.StartsWith(pattern));
+                                            position = long.Parse(s.Substring(pattern.Length));
+                                        }
+                                        response.Dispose();
+                                        await StartUploadAsync(position);
+                                        return;
+                                    }
+                                    else if (response.StatusCode == HttpStatusCode.NotFound)
+                                    {
+                                        MessageAppended?.Invoke("The upload session has expired and the upload needs to be restarted from the beginning.");
+                                        MessageAppended?.Invoke(await LogHttpWebResponse(response, true));
+                                        response.Dispose();
+                                        Status = UploadStatus.ErrorNeedRestart;
+                                        return;
                                     }
                                     else
                                     {
-                                        //bytes=0-42
-                                        string s = response.Headers["range"];
-                                        MessageAppended?.Invoke($"Range received by server: {s}");
-                                        string pattern = "bytes=0-";
-                                        MyLogger.Assert(s.StartsWith(pattern));
-                                        position = long.Parse(s.Substring(pattern.Length));
+                                        MessageAppended?.Invoke("Http response isn't OK, Created or 308!");
+                                        MessageAppended?.Invoke(await LogHttpWebResponse(response, true));
+                                        response.Dispose();
+                                        Status = UploadStatus.ErrorNeedResume;
+                                        return;
                                     }
-                                    response.Dispose();
-                                    await StartUploadAsync(position);
-                                    return;
-                                }
-                                else if (response.StatusCode == HttpStatusCode.NotFound)
-                                {
-                                    MessageAppended?.Invoke("The upload session has expired and the upload needs to be restarted from the beginning.");
-                                    MessageAppended?.Invoke(await LogHttpWebResponse(response, true));
-                                    response.Dispose();
-                                    Status = UploadStatus.ErrorNeedRestart;
-                                    return;
-                                }
-                                else
-                                {
-                                    MessageAppended?.Invoke("Http response isn't OK, Created or 308!");
-                                    MessageAppended?.Invoke(await LogHttpWebResponse(response, true));
-                                    response.Dispose();
-                                    Status = UploadStatus.ErrorNeedResume;
-                                    return;
                                 }
                             }
-                        }
-                    case UploadStatus.NotStarted:
-                        {
-                            await CreateResumableUploadAsync(parents);
-                            if (Status != UploadStatus.Created) return;
-                            MyLogger.Assert(resumableUri.StartsWith("\"") && resumableUri.EndsWith("\""));
-                            resumableUri = resumableUri.Substring(1, resumableUri.Length - 2);
-                            await StartUploadAsync(0);
-                            return;
-                        }
-                    case UploadStatus.Completed:
-                    case UploadStatus.Created:
-                    case UploadStatus.Creating:
-                    case UploadStatus.ErrorNeedRestart:
-                    case UploadStatus.Uploading:
-                    default:throw new Exception($"Status: {Status}");
+                        case UploadStatus.NotStarted:
+                            {
+                                await CreateResumableUploadAsync(parents);
+                                if (Status != UploadStatus.Created) return;
+                                MyLogger.Assert(resumableUri.StartsWith("\"") && resumableUri.EndsWith("\""));
+                                resumableUri = resumableUri.Substring(1, resumableUri.Length - 2);
+                                await StartUploadAsync(0);
+                                return;
+                            }
+                        case UploadStatus.Completed:
+                        case UploadStatus.Created:
+                        case UploadStatus.Creating:
+                        case UploadStatus.ErrorNeedRestart:
+                        case UploadStatus.Uploading:
+                        default: throw new Exception($"Status: {Status}");
+                    }
+                }
+                finally
+                {
+                    if (pauseRequest)
+                    {
+                        MyLogger.Assert(Status != UploadStatus.Uploading);
+                        lock (semaphoreSlim) semaphoreSlim.Release();
+                    }
                 }
             }
             public async Task PauseAsync()
@@ -319,11 +330,17 @@ namespace GoogleDrive
                         {
                             MessageAppended?.Invoke("Pausing...");
                             pauseRequest = true;
-                            await semaphoreSlim.WaitAsync();
-                            MyLogger.Assert(Status != UploadStatus.Uploading);
+                            await semaphoreSlim.WaitAsync(10000);
+                            //MyLogger.Assert(Status != UploadStatus.Uploading);
                             //while (Status == UploadStatus.Uploading) await Task.Delay(100);
-                            MessageAppended?.Invoke("Paused");
                             pauseRequest = false;
+                            if(Status == UploadStatus.Uploading)
+                            {
+                                MyLogger.Log("Failed to pause");
+                                MessageAppended?.Invoke("Failed to pause");
+                            }
+                            //MessageAppended?.Invoke($"Status after paused: {Status}");
+                            //if () await MyLogger.Alert($"Status after paused: {Status}");
                             return;
                         }
                     case UploadStatus.Completed:

@@ -65,7 +65,7 @@ namespace GoogleDrive
                 case HttpStatusCode.Forbidden:
                     {
                         MyLogger.Log(await LogHttpWebResponse(ans, true));
-                        if (minisecs > 500 * 16)
+                        if (minisecs > Constants.MaxTimeToWait)
                         {
                             MyLogger.Log("Attempted to reconnect but still failed.");
                             return ans;
@@ -116,7 +116,7 @@ namespace GoogleDrive
                     {
                         case FileCreatorStatus.ErrorNeedRestart:
                             {
-                                if (timeToWait > 500 * 16) return;
+                                if (timeToWait >Constants.MaxTimeToWait) return;
                                 MessageAppended?.Invoke($"Waiting for {timeToWait} and try again...");
                                 timeToWait *= 2;
                             }break;

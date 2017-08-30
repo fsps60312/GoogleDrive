@@ -10,6 +10,10 @@ namespace GoogleDrive
         {
             public class FolderCreator:Networker
             {
+                public override string ToString()
+                {
+                    return $"[FC]{folderName}  \t↑: {cloudFolder.Name}";
+                }
                 public delegate void NewFolderCreateCreatedEventHandler(FolderCreator folderCreator);
                 public static event NewFolderCreateCreatedEventHandler NewFolderCreateCreated;
                 CloudFile cloudFolder;

@@ -13,7 +13,7 @@ namespace GoogleDrive
             {
                 public override string ToString()
                 {
-                    return $"[U]{fileName}";
+                    return $"[U]{fileName}  \t↑: {CloudFolder.Name}";
                 }
                 public delegate void NewFileUploadCreatedEventHandler(FileUploader uploader);
                 public static event NewFileUploadCreatedEventHandler NewFileUploadCreated;
@@ -57,7 +57,17 @@ namespace GoogleDrive
                 }
                 protected override async Task PausePrivateAsync()
                 {
-                    await uploader.PauseAsync();
+                    switch(Status)
+                    {
+                        case NetworkStatus.Networking:
+                            {
+                                await uploader.PauseAsync();
+                            }break;
+                        default:
+                            {
+                                OnMessageAppended($"Status: {Status}, no way to pause");
+                            }break;
+                    }
                 }
                 protected override async Task StartPrivateAsync()
                 {
@@ -71,7 +81,7 @@ namespace GoogleDrive
                                 {
                                     if (Status != NetworkStatus.Paused)
                                     {
-                                        Status = NetworkStatus.Starting;
+                                        //Status = NetworkStatus.Starting;
                                         //MyLogger.Assert(downloader == null && windowsFile == null && fileStream == null);
                                         if (fileStream != null)
                                         {
@@ -116,7 +126,7 @@ namespace GoogleDrive
                                             }
                                         case RestRequests.Uploader.UploadStatus.ErrorNeedResume:
                                             {
-                                                if(timeToWait>500*16)
+                                                if(timeToWait>Constants.MaxTimeToWait)
                                                 {
                                                     Status = NetworkStatus.ErrorNeedRestart;
                                                     return;
@@ -138,7 +148,7 @@ namespace GoogleDrive
                                 }
                             case NetworkStatus.Completed:
                             case NetworkStatus.Networking:
-                            case NetworkStatus.Starting:
+                            //case NetworkStatus.Starting:
                                 {
                                     OnMessageAppended($"Status: {Status}, no way to start");
                                     return;

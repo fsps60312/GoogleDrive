@@ -60,7 +60,7 @@ namespace GoogleDrive
                             {
                                 if (Status != NetworkStatus.Paused)
                                 {
-                                    Status = NetworkStatus.Starting;
+                                    //Status = NetworkStatus.Starting;
                                     //MyLogger.Assert(downloader == null && windowsFile == null && fileStream == null);
                                     windowsFile = await CreateTemporaryFile();
                                     fileStream = await windowsFile.OpenStreamForWriteAsync();
@@ -115,7 +115,7 @@ namespace GoogleDrive
                             }
                         case NetworkStatus.Completed:
                         case NetworkStatus.Networking:
-                        case NetworkStatus.Starting:
+                        //case NetworkStatus.Starting:
                         default: throw new Exception($"Status: {Status}");
                     }
                 }

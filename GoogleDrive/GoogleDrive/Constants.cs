@@ -6,6 +6,7 @@ namespace GoogleDrive
 {
     static class Constants
     {
+        public const int MaxTimeToWait = 500 * 16;
         /// <summary>
         /// 自動判斷檔案的 MimeType
         /// </summary>

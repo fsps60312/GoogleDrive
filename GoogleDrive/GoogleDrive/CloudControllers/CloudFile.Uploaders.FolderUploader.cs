@@ -13,7 +13,7 @@ namespace GoogleDrive
             {
                 public override string ToString()
                 {
-                    return $"[FU]{windowsFolder.Name}";
+                    return $"[FU]{windowsFolder.Name}  \t↑: {cloudFolder.Name}";
                 }
                 public delegate void NewFolderUploadCreatedEventHandler(FolderUploader uploader);
                 public static event NewFolderUploadCreatedEventHandler NewFolderUploadCreated;
@@ -26,7 +26,7 @@ namespace GoogleDrive
                     windowsFolder = _windowsFolder;
                     NewFolderUploadCreated?.Invoke(this);
                 }
-                HashSet<Networker> subTasks = new HashSet<Networker>();
+                volatile HashSet<Networker> subTasks = new HashSet<Networker>();
                 protected override async Task StartPrivateAsync()
                 {
                     ReleaseSemaphoreSlim();
@@ -37,39 +37,71 @@ namespace GoogleDrive
                             case NetworkStatus.NotStarted:
                                 {
                                     Status = NetworkStatus.Networking;
-                                    var fc = new Modifiers.FolderCreator(cloudFolder, windowsFolder.Name);
-                                    var messageAppendedEventHandler = new MessageAppendedEventHandler((msg) => { OnMessageAppended($"[FC]{msg}"); });
-                                    OnMessageAppended("Creating folder...");
-                                    fc.MessageAppended += messageAppendedEventHandler;
-                                    await fc.StartUntilCompletedAsync();
-                                    fc.MessageAppended -= messageAppendedEventHandler;
-                                    //switch (fc.Status)
-                                    //{
-                                    //    case NetworkStatus.Completed:
-                                    //        {
-                                    OnMessageAppended("Folder created");
-                                    UploadedCloudFolder = fc.CreatedCloudFolder;
-                                    OnProgressChanged(0, 0);
-                                    //NetworkingCount--;
-                                    foreach (var f in await windowsFolder.GetFilesAsync())
+                                    if (UploadedCloudFolder == null)
                                     {
-                                        subTasks.Add(new FileUploader(fc.CreatedCloudFolder, f, f.Name));
+                                        var fc = new Modifiers.FolderCreator(cloudFolder, windowsFolder.Name);
+                                        var messageAppendedEventHandler = new MessageAppendedEventHandler((msg) => { OnMessageAppended($"[FC]{msg}"); });
+                                        OnMessageAppended("Creating folder...");
+                                        fc.MessageAppended += messageAppendedEventHandler;
+                                        await fc.StartUntilCompletedAsync();
+                                        fc.MessageAppended -= messageAppendedEventHandler;
+                                        //switch (fc.Status)
+                                        //{
+                                        //    case NetworkStatus.Completed:
+                                        //        {
+                                        OnMessageAppended("Folder created");
+                                        UploadedCloudFolder = fc.CreatedCloudFolder;
+                                        OnProgressChanged(0, 0);
                                     }
-                                    foreach (var f in await windowsFolder.GetFoldersAsync())
+                                    //NetworkingCount--;
+                                    var windowsFolders = await windowsFolder.GetFilesAsync();
+                                    lock (subTasks)
                                     {
-                                        subTasks.Add(new FolderUploader(fc.CreatedCloudFolder, f));
+                                        foreach (var f in windowsFolders)
+                                        {
+                                            subTasks.Add(new FileUploader(UploadedCloudFolder, f, f.Name));
+                                        }
+                                    }
+                                    var windowsFiles = await windowsFolder.GetFoldersAsync();
+                                    lock (subTasks)
+                                    {
+                                        foreach (var f in windowsFiles)
+                                        {
+                                            subTasks.Add(new FolderUploader(UploadedCloudFolder, f));
+                                        }
                                     }
                                     OnProgressChanged(0, subTasks.Count);
-                                    //foreach (var st in subTasks)
-                                    //{
-                                    //    await st.StartAsync();
-                                    //}
                                     int progress = 0;
-                                    await Task.WhenAll(subTasks.Select(async (st) =>
+                                    if (Status == NetworkStatus.Paused)
                                     {
-                                        await st.StartUntilCompletedAsync();
-                                        OnProgressChanged(++progress, subTasks.Count);
-                                    }));
+                                        IEnumerable<Task> tasks;
+                                        lock (subTasks)
+                                        {
+                                            tasks = subTasks.Select(async (st) =>
+                                             {
+                                                 await st.WaitUntilCompletedAsync();
+                                                 OnProgressChanged(++progress, subTasks.Count);
+                                             });
+                                        }
+                                        await Task.WhenAll(tasks);
+                                    }
+                                    else
+                                    {
+                                        IEnumerable<Task> tasks;
+                                        lock (subTasks)
+                                        {
+                                            tasks = subTasks.Select(async (st) =>
+                                            {
+                                                await st.StartUntilCompletedAsync();
+                                                OnProgressChanged(++progress, subTasks.Count);
+                                            });
+                                        }
+                                        //foreach (var st in subTasks)
+                                        //{
+                                        //    await st.StartAsync();
+                                        //}
+                                        await Task.WhenAll(tasks);
+                                    }
                                     //NetworkingCount++;
                                     Status = NetworkStatus.Completed;
                                     return;
@@ -86,7 +118,7 @@ namespace GoogleDrive
                                 {
                                     Status = NetworkStatus.Networking;
                                     await Task.WhenAll(subTasks.Select(async (st) => { await st.StartAsync(); }));
-                                    Status = NetworkStatus.Completed;
+                                    //Status = NetworkStatus.Completed;
                                 }break;
                             default:
                                 {
@@ -100,7 +132,7 @@ namespace GoogleDrive
                     }
                     finally
                     {
-                        await WaitSemaphoreSlim();
+                        await WaitSemaphoreSlimAsync();
                     }
                 }
                 protected override async Task PausePrivateAsync()

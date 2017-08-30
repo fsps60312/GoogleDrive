@@ -311,10 +311,7 @@ namespace GoogleDrive
                             }
                             finally
                             {
-                                lock (semaphoreSlim)
-                                {
-                                    semaphoreSlim.Release();
-                                }
+                                lock (semaphoreSlim)semaphoreSlim.Release();
                             }
                         };
                         GDstatus.Children.Add(lbl, columnNumber++, 0);
