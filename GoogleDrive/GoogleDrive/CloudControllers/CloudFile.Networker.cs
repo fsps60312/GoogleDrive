@@ -15,9 +15,13 @@ namespace GoogleDrive
                 MyLogger.AddTestMethod("Release semaphoreSlim", new Func<Task>(async () =>
                    {
                        await Task.Delay(0);
-                       semaphoreSlim.Release();
+                       SemaphoreSlim.Release();
                    }));
             }
+            //public Networker()
+            //{
+            //    MessageAppended += (log) => { MyLogger.Log(log); };
+            //}
             //protected static volatile int __NetworkingCount__ = 0;
             //protected static int NetworkingCount
             //{
@@ -30,19 +34,18 @@ namespace GoogleDrive
             //    }
             //}
             protected const int NetworkingMaxCount = 20;
-            private volatile static SemaphoreSlim semaphoreSlim = new SemaphoreSlim(NetworkingMaxCount, NetworkingMaxCount);
+            private volatile static SemaphoreSlim SemaphoreSlim = new SemaphoreSlim(NetworkingMaxCount, NetworkingMaxCount);
             protected static async Task WaitSemaphoreSlim()
             {
-                await semaphoreSlim.WaitAsync();
+                await SemaphoreSlim.WaitAsync();
             }
             protected static void ReleaseSemaphoreSlim()
             {
-                lock (semaphoreSlim)
+                lock (SemaphoreSlim)
                 {
-                    semaphoreSlim.Release();
+                    SemaphoreSlim.Release();
                 }
             }
-            public bool IsBusy { get; protected set; } = false;
             //private volatile int WaitingProcessCount = 100;
             public enum NetworkStatus { NotStarted, Starting, ErrorNeedRestart, Networking, Paused, Completed };
             public delegate void NetworkStatusChangedEventHandler();
@@ -72,11 +75,39 @@ namespace GoogleDrive
                 }
             }
             public List<string> messages = new List<string>();
+            DateTime pauseTime = DateTime.MaxValue;
             public abstract Task ResetAsync();
-            public abstract Task PauseAsync();
+            public async Task PauseAsync()
+            {
+                pauseTime = DateTime.Now;
+                await PausePrivateAsync();
+            }
+            public async Task StartUntilCompletedAsync()
+            {
+                SemaphoreSlim semaphoreSlim = new SemaphoreSlim(0, 1);
+                NetworkStatusChangedEventHandler statusChangedEventHandler = null;
+                statusChangedEventHandler = new NetworkStatusChangedEventHandler(() =>
+                  {
+                      if (Status == NetworkStatus.Completed)
+                      {
+                          StatusChanged -= statusChangedEventHandler;
+                          semaphoreSlim.Release();
+                      }
+                  });
+                StatusChanged += statusChangedEventHandler;
+                await StartAsync();
+                await semaphoreSlim.WaitAsync();
+                MyLogger.Assert(Status == NetworkStatus.Completed);
+            }
             public async Task StartAsync()
             {
-                await semaphoreSlim.WaitAsync();
+                pauseTime = DateTime.MaxValue;
+                await SemaphoreSlim.WaitAsync();
+                if (pauseTime <= DateTime.Now)
+                {
+                    Status = NetworkStatus.Paused;
+                    return;
+                }
                 try
                 {
                     await StartPrivateAsync();
@@ -87,9 +118,10 @@ namespace GoogleDrive
                 }
                 finally
                 {
-                    semaphoreSlim.Release();
+                    SemaphoreSlim.Release();
                 }
             }
+            protected abstract Task PausePrivateAsync();
             protected abstract Task StartPrivateAsync();
         }
     }

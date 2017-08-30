@@ -279,30 +279,33 @@ namespace GoogleDrive
         public async Task<CloudFile> CreateFolderAsync(string folderName)
         {
             MyLogger.Assert(this.IsFolder);
-            var request = (await Drive.GetDriveServiceAsync()).Files.Create(
-                new Google.Apis.Drive.v3.Data.File
-                {
-                    Name = folderName,
-                    Parents = new List<string> { this.Id },
-                    MimeType = Constants.FolderMimeType
-                });
-            //MyLogger.Log($"Creating folder... {folderName} ({this.FullName})");
-            var result = await request.ExecuteAsync();
-            //var result = await new Func<Task<Google.Apis.Drive.v3.Data.File>, Task<Google.Apis.Drive.v3.Data.File>>((Task<Google.Apis.Drive.v3.Data.File> task) =>
-            //{
-            //    task.ContinueWith(t =>
+            var folderCreator = new RestRequests.FileCreator(this.Id, folderName, true);
+            //var request = (await Drive.GetDriveServiceAsync()).Files.Create(
+            //    new Google.Apis.Drive.v3.Data.File
             //    {
-            //        // NotOnRanToCompletion - this code will be called if the upload fails
-            //        MyLogger.Log($"Failed to create folder:\r\n{t.Exception}");
-            //    }, TaskContinuationOptions.NotOnRanToCompletion);
-            //    task.ContinueWith(t =>
-            //    {
-            //        MyLogger.Log($"Folder created successfully: {folderName} ({this.FullName})");
+            //        Name = folderName,
+            //        Parents = new List<string> { this.Id },
+            //        MimeType = Constants.FolderMimeType
             //    });
-            //    return task;
-            //})();
-            MyLogger.Assert(result.Name == folderName);
-            var ans = new CloudFile(result.Id, result.Name, true, this);
+            ////MyLogger.Log($"Creating folder... {folderName} ({this.FullName})");
+            //var result = await request.ExecuteAsync();
+            ////var result = await new Func<Task<Google.Apis.Drive.v3.Data.File>, Task<Google.Apis.Drive.v3.Data.File>>((Task<Google.Apis.Drive.v3.Data.File> task) =>
+            ////{
+            ////    task.ContinueWith(t =>
+            ////    {
+            ////        // NotOnRanToCompletion - this code will be called if the upload fails
+            ////        MyLogger.Log($"Failed to create folder:\r\n{t.Exception}");
+            ////    }, TaskContinuationOptions.NotOnRanToCompletion);
+            ////    task.ContinueWith(t =>
+            ////    {
+            ////        MyLogger.Log($"Folder created successfully: {folderName} ({this.FullName})");
+            ////    });
+            ////    return task;
+            ////})();
+            //MyLogger.Assert(result.Name == folderName);
+            await folderCreator.Start();
+            MyLogger.Assert(folderCreator.Result != null);
+            var ans = new CloudFile(folderCreator.Result, folderName, true, this);
             return ans;
         }
         public SearchListGetter FoldersGetter()

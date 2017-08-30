@@ -55,7 +55,7 @@ namespace GoogleDrive
                         Status = NetworkStatus.ErrorNeedRestart;
                     }
                 }
-                public override async Task PauseAsync()
+                protected override async Task PausePrivateAsync()
                 {
                     await uploader.PauseAsync();
                 }
@@ -91,8 +91,9 @@ namespace GoogleDrive
                                     });
                                     var messageAppendedEventHandler = new MessageAppendedEventHandler((msg) =>
                                     {
-                                        OnMessageAppended("Rest: " + msg);
+                                        OnMessageAppended($"[Rest]{msg}");
                                     });
+                                    int timeToWait = 500;
                                     uploadAgain_index:;
                                     uploader.ProgressChanged += progressChangedEventHandler;
                                     uploader.MessageAppended += messageAppendedEventHandler;
@@ -115,7 +116,14 @@ namespace GoogleDrive
                                             }
                                         case RestRequests.Uploader.UploadStatus.ErrorNeedResume:
                                             {
-                                                OnMessageAppended("Error need resume...");
+                                                if(timeToWait>500*16)
+                                                {
+                                                    Status = NetworkStatus.ErrorNeedRestart;
+                                                    return;
+                                                }
+                                                OnMessageAppended($"Error need resume... Waiting for {timeToWait} minisecs...");
+                                                await Task.Delay(timeToWait);
+                                                timeToWait *= 2;
                                                 goto uploadAgain_index;
                                             }
                                         case RestRequests.Uploader.UploadStatus.Paused:
@@ -132,7 +140,7 @@ namespace GoogleDrive
                             case NetworkStatus.Networking:
                             case NetworkStatus.Starting:
                                 {
-                                    OnMessageAppended($"Status: { Status}, no action take to start");
+                                    OnMessageAppended($"Status: {Status}, no way to start");
                                     return;
                                 }
                             default: throw new Exception($"Status: {Status}");
@@ -140,7 +148,7 @@ namespace GoogleDrive
                     }
                     catch(Exception error)
                     {
-                        OnMessageAppended($"Unexpected: {error}");
+                        OnMessageAppended($"[Unexpected]{error}");
                         Status = NetworkStatus.ErrorNeedRestart;
                     }
                 }

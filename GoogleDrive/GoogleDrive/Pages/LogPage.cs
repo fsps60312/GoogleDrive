@@ -4,87 +4,253 @@ using System.Text;
 using System.Threading.Tasks;
 using Xamarin.Forms;
 using GoogleDrive.MyControls;
+using GoogleDrive.MyControls.BarsListPanel;
+using System.ComponentModel;
+using System.Windows.Input;
 
 namespace GoogleDrive
 {
     class LogPage:MyContentPage
     {
-        class MyTextBox:MyScrollView
+        static string MakeOneLine(string s)
         {
-            StackLayout SLmain;
-            public MyTextBox():base(ScrollOrientation.Both)
+            return s.Replace("\r\n", "\t").Replace('\n', '\t').Replace('\r', '\t');
+            //int i = s.IndexOf("\n");
+            //if (i == -1) return s;
+            //else if (i > 0 && s[i - 1] == '\r') return s.Remove(i - 1) + "... (Tap to Expand)";
+            //else return s.Remove(i) + "... (Tap to Expand)";
+        }
+        class LogPageItemBarViewModel : MyDisposable, INotifyPropertyChanged
+        {
+            public event PropertyChangedEventHandler PropertyChanged;
+            private void OnPropertyChanged(string propertyName)
             {
-                this.SizeChanged += async delegate { await this.ScrollToEnd(); };
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+            }
+            private string __Number__;
+            private string __Time__;
+            private string __Log__;
+            private ICommand __Tapped__;
+            private FontAttributes __FontAttributes__;
+            public string Number
+            {
+                private set
                 {
-                    SLmain = new StackLayout { Orientation=StackOrientation.Vertical};
-                    this.Content = SLmain;
+                    __Number__ = value;
+                    OnPropertyChanged("Number");
                 }
+                get { return __Number__; }
             }
-            private async Task ScrollToEnd()
+            public string Time
             {
-                await this.ScrollToAsync(0, double.MaxValue, true);
-                await this.ScrollToAsync(0, double.MaxValue, false);
+                private set
+                {
+                    __Time__ = value;
+                    OnPropertyChanged("Time");
+                }
+                get { return __Time__; }
             }
-            int cnt = 0;
-            public async Task AppendLine(string text)
+            public string Log
             {
-                if (SLmain.Children.Count > 1000) Clear();
-                StackLayout sl = new StackLayout { Orientation = StackOrientation.Horizontal };
-                sl.Children.Add(new Label { Text = $"#{++cnt}\t", LineBreakMode = LineBreakMode.NoWrap });
-                sl.Children.Add(new Label { Text = $"{DateTime.Now}\t", LineBreakMode = LineBreakMode.NoWrap });
-                sl.Children.Add(new Label { Text = text, LineBreakMode = LineBreakMode.NoWrap });
-                SLmain.Children.Add(sl);
-                await this.ScrollToEnd();
+                private set
+                {
+                    __Log__ = value;
+                    OnPropertyChanged("Log");
+                }
+                get { return __Log__; }
             }
-            public void Clear()
+            public ICommand Tapped
             {
-                this.Content = null;
-                SLmain.Children.Clear();
-                this.Content = SLmain;
+                private set
+                {
+                    __Tapped__ = value;
+                    OnPropertyChanged("Tapped");
+                }
+                get { return __Tapped__; }
+            }
+            public FontAttributes FontAttributes
+            {
+                private set
+                {
+                    __FontAttributes__ = value;
+                    OnPropertyChanged("FontAttributes");
+                }
+                get { return __FontAttributes__; }
+            }
+            static volatile int counter = 0;
+            DateTime time = DateTime.Now;
+            int number = ++counter;
+            string log;
+            static int LineCount(string s)
+            {
+                int ans = 1, i = -1;
+                while ((i = s.IndexOf("\n", i + 1)) != -1) ++ans;
+                return ans;
+            }
+            bool isExpanded = false;
+            int lineCount;
+            public LogPageItemBarViewModel(string _log)
+            {
+                log = _log;
+                Number = $"#{number}  \t";
+                Time = $"{time}  \t";
+                //Log = MakeOneLine(log);// +"#"+LineCount(log).ToString();
+                lineCount = LineCount(log);
+                if (lineCount == 1) Log = log;
+                else Log = $"[Tap to Expand]{MakeOneLine(log)}";
+                //FontAttributes = (lineCount > 1 ? FontAttributes.Bold : FontAttributes.None);
+                Tapped = new Command(() =>
+                  {
+                      if (lineCount == 1) return;
+                      isExpanded ^= true;
+                      if (isExpanded)
+                      {
+                          //FontAttributes=FontAttributes.Italic;
+                          Log = log;
+                          OnHeightChanged((lineCount - 1) * 19.5);
+                      }
+                      else
+                      {
+                          //FontAttributes = FontAttributes.Bold;
+                          Log = $"[Tap to Expand]{MakeOneLine(log)}";
+                          OnHeightChanged(-(lineCount - 1) * 19.5);
+                      }
+                  });
             }
         }
+        class LogPageItemBar : MyGrid, IDataBindedView<LogPageItemBarViewModel>
+        {
+            public event DataBindedViewEventHandler<LogPageItemBarViewModel> Appeared;
+            public Func<Task> Disappearing { get; set; }
+            public void Reset(LogPageItemBarViewModel source)
+            {
+                if (this.BindingContext != null) (this.BindingContext as MyDisposable).UnregisterDisposingEvents();
+                this.BindingContext = source;
+                //BarsListPanel.MyDisposable.MyDisposableEventHandler eventHandler = new BarsListPanel.MyDisposable.MyDisposableEventHandler(
+                if (source != null) source.Disposing = new Func<Task>(async () => { await Disappearing?.Invoke(); }); //MyDispossable will automatically unregister all Disposing events after disposed
+                Appeared?.Invoke(this);
+            }
+            MyLabel LBnumber, LBtime, LBlog;
+            private void InitializeViews()
+            {
+                this.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Auto) });
+                this.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Auto) });
+                this.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Auto) });
+                {
+                    LBnumber = new MyLabel("Number");
+                    LBnumber.SetBinding(MyLabel.TextProperty, new Binding("Number"));
+                    LBnumber.LineBreakMode = LineBreakMode.NoWrap;
+                    this.Children.Add(LBnumber, 0, 0);
+                }
+                {
+                    LBtime = new MyLabel("Time");
+                    LBtime.SetBinding(MyLabel.TextProperty, new Binding("Time"));
+                    LBtime.LineBreakMode = LineBreakMode.NoWrap;
+                    this.Children.Add(LBtime, 1, 0);
+                }
+                {
+                    LBlog = new MyLabel("Log");
+                    LBlog.SetBinding(MyLabel.TextProperty, new Binding("Log"));
+                    LBlog.SetBinding(MyLabel.FontAttributesProperty, new Binding("FontAttributes"));
+                    LBlog.LineBreakMode = LineBreakMode.NoWrap;
+                    //LBlog.SetBinding(MyLabel.LineBreakModeProperty, new Binding("LineBreakMode"));
+                    this.Children.Add(LBlog, 2, 0);
+                }
+                var gestureRecognizer = new TapGestureRecognizer();
+                gestureRecognizer.SetBinding(TapGestureRecognizer.CommandProperty, "Tapped");
+                this.GestureRecognizers.Add(gestureRecognizer);
+                //StackLayout sl = new StackLayout { Orientation = StackOrientation.Horizontal };
+                //sl.Children.Add(new Label { Text = $"#{++cnt}\t", LineBreakMode = LineBreakMode.NoWrap });
+                //sl.Children.Add(new Label { Text = $"{DateTime.Now}\t", LineBreakMode = LineBreakMode.NoWrap });
+                //sl.Children.Add(new Label { Text = text, LineBreakMode = LineBreakMode.NoWrap });
+            }
+            public LogPageItemBar()
+            {
+                InitializeViews();
+                this.Appeared += async (sender) =>
+                {
+                    this.Opacity = 0;
+                    await this.FadeTo(1, 500);
+                };
+                this.Disappearing = new Func<Task>(async () =>
+                {
+                    await this.FadeTo(0, 500);
+                });
+            }
+            public LogPageItemBar(LogPageItemBarViewModel source) : this()
+            {
+                this.Reset(source);
+            }
+        }
+        class LogPanel : BarsListPanel<LogPageItemBar, LogPageItemBarViewModel>
+        {
+            public bool autoScroll = true;
+            public LogPanel()
+            {
+                this.BarsLayoutMethod = new Func<double, Tuple<Rectangle, AbsoluteLayoutFlags>>((y) =>
+                  {
+                      return new Tuple<Rectangle, AbsoluteLayoutFlags>(new Rectangle(0, y, -1, -1), AbsoluteLayoutFlags.None);
+                  });
+                this.SVmain.Orientation = ScrollOrientation.Both;
+                this.ItemHeight = 25;
+                MyLogger.LogAppended += async(log) =>
+                {
+                    this.PushBack(new LogPageItemBarViewModel(log));
+                    if (autoScroll)
+                    {
+                        await this.ScrollToEnd();
+                        await Task.Delay((int)this.AnimationDuration);
+                        await this.ScrollToEnd();
+                    }
+                };
+            }
+        }
+        //class MyTextBox:MyScrollView
+        //{
+        //    StackLayout SLmain;
+        //    public MyTextBox():base(ScrollOrientation.Both)
+        //    {
+        //        this.SizeChanged += async delegate { await this.ScrollToEnd(); };
+        //        {
+        //            SLmain = new StackLayout { Orientation=StackOrientation.Vertical};
+        //            this.Content = SLmain;
+        //        }
+        //    }
+        //    private async Task ScrollToEnd()
+        //    {
+        //        await this.ScrollToAsync(0, double.MaxValue, true);
+        //        await this.ScrollToAsync(0, double.MaxValue, false);
+        //    }
+        //    int cnt = 0;
+        //    public async Task AppendLine(string text)
+        //    {
+        //        if (SLmain.Children.Count > 1000) Clear();
+        //        StackLayout sl = new StackLayout { Orientation = StackOrientation.Horizontal };
+        //        sl.Children.Add(new Label { Text = $"#{++cnt}\t", LineBreakMode = LineBreakMode.NoWrap });
+        //        sl.Children.Add(new Label { Text = $"{DateTime.Now}\t", LineBreakMode = LineBreakMode.NoWrap });
+        //        sl.Children.Add(new Label { Text = text, LineBreakMode = LineBreakMode.NoWrap });
+        //        SLmain.Children.Add(sl);
+        //        await this.ScrollToEnd();
+        //    }
+        //    public void Clear()
+        //    {
+        //        this.Content = null;
+        //        SLmain.Children.Clear();
+        //        this.Content = SLmain;
+        //    }
+        //}
         public LogPage():base("Log")
         {
             InitializeControls();
             RegisterEvents();
-            DoAsyncInitializationTasks();
-        }
-        string MainStatus
-        {
-            get { return LBstatus.Text; }
-            set
-            {
-                StatusCount = Math.Max(StatusCount, 1);
-                LBstatus.Text = value;
-            }
-        }
-        int StatusCount
-        {
-            get
-            {
-                if (!LBstatus.IsVisible) return 0;
-                if (!GDstatus1.IsVisible) return 1;
-                if (!GDstatus2.IsVisible) return 2;
-                return 3;
-            }
-            set
-            {
-                MyLogger.Assert(0 <= value && value <= 3);
-                LBstatus.IsVisible = value >= 1;
-                GDstatus1.IsVisible = value >= 2;
-                GDstatus2.IsVisible = value >= 3;
-            }
-        }
-        private async void DoAsyncInitializationTasks()
-        {
-            //await CloudFile.AuthorizeAsync();
-            //Old.Test2.Run();
-            StatusCount = 0;
-            MainStatus = "Done.";
-            await Task.Delay(0);
         }
         private void RegisterEvents()
         {
+            MyLogger.LogAppended += (log) => { LBstatus.Text = MakeOneLine(log); };
+            SWautoScroll.Toggled += delegate
+              {
+                  EDlog.autoScroll = SWautoScroll.IsToggled;
+              };
             BTNclear.Clicked +=async delegate
               {
                   BTNclear.IsEnabled = false;
@@ -95,51 +261,6 @@ namespace GoogleDrive
                   }
                   BTNclear.IsEnabled = true;
               };
-            MyLogger.LogAppended += delegate (string log)
-            {
-                //log = $"#{++logCount}:\t{log}";
-                Device.BeginInvokeOnMainThread(async() =>
-                {
-                    MainStatus = log;
-                    await EDlog.AppendLine(log);
-                });
-            };
-            MyLogger.Progress1Changed += delegate (double progress)
-            {
-                Device.BeginInvokeOnMainThread(() =>
-                {
-                    StatusCount = Math.Max(StatusCount, 2);
-                    PBstatus1.IsVisible = true;
-                    PBstatus1.Progress = progress;
-                });
-            };
-            MyLogger.Progress2Changed += delegate (double progress)
-            {
-                Device.BeginInvokeOnMainThread(() =>
-                {
-                    StatusCount = Math.Max(StatusCount, 3);
-                    PBstatus2.IsVisible = true;
-                    PBstatus2.Progress = progress;
-                });
-            };
-            MyLogger.Status1Changed += delegate (string status)
-            {
-                Device.BeginInvokeOnMainThread(() =>
-                {
-                    StatusCount = Math.Max(StatusCount, 2);
-                    LBstatus1.IsVisible = true;
-                    LBstatus1.Text = status;
-                });
-            };
-            MyLogger.Status2Changed += delegate (string status)
-            {
-                Device.BeginInvokeOnMainThread(() =>
-                {
-                    StatusCount = Math.Max(StatusCount, 3);
-                    LBstatus2.IsVisible = true;
-                    LBstatus2.Text = status;
-                });
-            };
         }
         private void InitializeControls()
         {
@@ -153,62 +274,71 @@ namespace GoogleDrive
                 GDmain.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Auto) });
                 GDmain.RowDefinitions.Add(new RowDefinition { Height = new GridLength(20, GridUnitType.Absolute) });
                 {
-                    EDlog = new MyTextBox();
+                    //EDlog = new MyTextBox();
+                    EDlog = new LogPanel();
                     GDmain.Children.Add(new Frame { OutlineColor = Color.Accent, Padding = new Thickness(5), Content = EDlog }, 0, 0);
                 }
                 {
                     GDstatus = new Grid();
                     GDstatus.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                    GDstatus.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2, GridUnitType.Auto) });
+                    GDstatus.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Auto) });
+                    GDstatus.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Auto) });
+                    GDstatus.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Auto) });
+                    int columnNumber = 0;
                     {
                         LBstatus = new Label { Text = "Initializing..." };
-                        GDstatus.Children.Add(new ScrollView { Orientation = ScrollOrientation.Horizontal, Content = LBstatus }, 0, 0);
+                        GDstatus.Children.Add(new ScrollView { Orientation = ScrollOrientation.Horizontal, Content = LBstatus }, columnNumber++, 0);
+                    }
+                    {
+                        var lbl = new MyLabel("Auto Scroll") { IsVisible = false, Opacity = 0, FontAttributes = FontAttributes.Bold, VerticalTextAlignment = TextAlignment.Center };
+                        SWautoScroll = new MySwitch("Auto Scroll", "Manual Scroll") { IsToggled = true };
+                        System.Threading.SemaphoreSlim semaphoreSlim = new System.Threading.SemaphoreSlim(1, 1);
+                        bool animationCompletedWith = true;
+                        SWautoScroll.Toggled += async delegate
+                        {
+                            bool backUp = SWautoScroll.IsToggled;
+                            try
+                            {
+                                await semaphoreSlim.WaitAsync();
+                                lbl.Text = (SWautoScroll.IsToggled ? "Auto Scroll" : "Manual Scroll");
+                                if (backUp != SWautoScroll.IsToggled || animationCompletedWith == backUp) return;
+                                lbl.IsVisible = true;
+                                await lbl.FadeTo(1);
+                                await Task.Delay(1000);
+                                await lbl.FadeTo(0);
+                                lbl.IsVisible = false;
+                                animationCompletedWith = backUp;
+                            }
+                            finally
+                            {
+                                lock (semaphoreSlim)
+                                {
+                                    semaphoreSlim.Release();
+                                }
+                            }
+                        };
+                        GDstatus.Children.Add(lbl, columnNumber++, 0);
+                    }
+                    {
+                        //SwitchCell SWautoScroll = new SwitchCell();
+                        //GDstatus.Children.Add(new TableView {Root=new TableRoot {Content=new TableSection { Content = { SWautoScroll} } } }, 1, 0);
+                        //new TableRoot().
+                        GDstatus.Children.Add(SWautoScroll, columnNumber++, 0);
                     }
                     {
                         BTNclear = new Button { Text = "Clear" };
-                        GDstatus.Children.Add(BTNclear, 1, 0);
+                        GDstatus.Children.Add(BTNclear, columnNumber++, 0);
                     }
                     GDmain.Children.Add(GDstatus, 0, 1);
-                }
-                {
-                    GDstatus1 = new Grid();
-                    GDstatus1.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                    GDstatus1.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2, GridUnitType.Star) });
-                    {
-                        LBstatus1 = new Label { Text = "status 1", IsVisible = false };
-                        GDstatus1.Children.Add(new ScrollView { Orientation = ScrollOrientation.Horizontal, Content = LBstatus1 }, 0, 0);
-                    }
-                    {
-                        PBstatus1 = new ProgressBar { Progress = 0.5, IsVisible = false };
-                        Grid.SetColumn(PBstatus1, 1);
-                        GDstatus1.Children.Add(PBstatus1);
-                    }
-                    Grid.SetRow(GDstatus1, 2);
-                    GDmain.Children.Add(GDstatus1);
-                }
-                {
-                    GDstatus2 = new Grid();
-                    GDstatus2.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                    GDstatus2.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(2, GridUnitType.Star) });
-                    {
-                        LBstatus2 = new Label { Text = "status 2", IsVisible = false };
-                        GDstatus2.Children.Add(new ScrollView { Orientation = ScrollOrientation.Horizontal, Content = LBstatus2 }, 0, 0);
-                    }
-                    {
-                        PBstatus2 = new ProgressBar { Progress = 0.5, IsVisible = false };
-                        Grid.SetColumn(PBstatus2, 1);
-                        GDstatus2.Children.Add(PBstatus2);
-                    }
-                    Grid.SetRow(GDstatus2, 3);
-                    GDmain.Children.Add(GDstatus2);
                 }
                 this.Content =new UnwipableContentView { Content = GDmain };
             }
         }
-        MyTextBox EDlog;
-        Grid GDmain,GDstatus, GDstatus1, GDstatus2;
+        //MyTextBox EDlog;
+        LogPanel EDlog;
+        MySwitch SWautoScroll;
+        Grid GDmain, GDstatus;
         Button BTNclear;
-        Label LBstatus, LBstatus1, LBstatus2;
-        ProgressBar PBstatus1, PBstatus2;
+        Label LBstatus;
     }
 }

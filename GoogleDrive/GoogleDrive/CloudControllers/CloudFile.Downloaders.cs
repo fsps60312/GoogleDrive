@@ -46,7 +46,7 @@ namespace GoogleDrive
                     fileStream = await windowsFile.OpenStreamForWriteAsync();
                     downloader = new RestRequests.Downloader(CloudFile.Id, fileStream);
                 }
-                public override async Task PauseAsync()
+                protected override async Task PausePrivateAsync()
                 {
                     await downloader.PauseAsync();
                 }

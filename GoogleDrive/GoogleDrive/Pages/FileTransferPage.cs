@@ -91,9 +91,10 @@ namespace GoogleDrive
     {
         public FileTransferContentView()
         {
-            CloudFile.Downloaders.FileDownloader.NewFileDownloadCreated += (networker) => { this.PushFront(new NetworkingItemBarViewModel(networker)); };
-            CloudFile.Uploaders.FileUploader.NewFileUploadCreated += (networker) => { this.PushFront(new NetworkingItemBarViewModel(networker)); };
-            CloudFile.Uploaders.FolderUploader.NewFolderUploadCreated += (networker) => { this.PushFront(new NetworkingItemBarViewModel(networker)); };
+            CloudFile.Modifiers.FolderCreator.NewFolderCreateCreated += (networker) => { this.PushBack(new NetworkingItemBarViewModel(networker)); };
+            CloudFile.Downloaders.FileDownloader.NewFileDownloadCreated += (networker) => { this.PushBack(new NetworkingItemBarViewModel(networker)); };
+            CloudFile.Uploaders.FileUploader.NewFileUploadCreated += (networker) => { this.PushBack(new NetworkingItemBarViewModel(networker)); };
+            CloudFile.Uploaders.FolderUploader.NewFolderUploadCreated += (networker) => { this.PushBack(new NetworkingItemBarViewModel(networker)); };
         }
     }
 }

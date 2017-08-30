@@ -18,6 +18,13 @@ namespace GoogleDrive
         CloudFile fileSelected = null;
         public FileBrowsePage():base("File Browse")
         {
+            MyLogger.AddTestMethod("Create file", new Func<Task>(async () =>
+            {
+                var fileCreator = new RestRequests.FileCreator(fileSelected.Id, "Hi", false);
+                fileCreator.MessageAppended += (log) => { MyLogger.Log(log); };
+                await fileCreator.Start();
+                await MyLogger.Alert(fileCreator.Result);
+            }));
             InitializeControls();
             RegisterEvents();
         }

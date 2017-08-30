@@ -4,6 +4,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Net;
 using Newtonsoft.Json;
+using System.Threading;
 
 namespace GoogleDrive
 {
@@ -30,6 +31,7 @@ namespace GoogleDrive
             } = null;
             public event MessageAppendedEventHandler MessageAppended;
             bool pauseRequest = false;
+            private volatile SemaphoreSlim semaphoreSlim = new SemaphoreSlim(0, 1);
             private async Task VerifyCheckSum()
             {
                 MessageAppended?.Invoke("Calculating checksum...");
@@ -51,6 +53,12 @@ namespace GoogleDrive
             }
             private async Task StartUploadAsync(long position)
             {
+                if (pauseRequest)
+                {
+                    Status = UploadStatus.Paused;
+                    semaphoreSlim.Release();
+                    return;
+                }
                 Status = UploadStatus.Uploading;
                 long chunkSize = MinChunkSize;
                 for (; position != fileStream.Length;)
@@ -79,6 +87,7 @@ namespace GoogleDrive
                     if(pauseRequest)
                     {
                         Status = UploadStatus.Paused;
+                        semaphoreSlim.Release();
                         return;
                     }
                 }
@@ -116,7 +125,6 @@ namespace GoogleDrive
                 {
                     if (response == null)
                     {
-                        MyLogger.Log("a");
                         MessageAppended?.Invoke("Null response");
                         Status = UploadStatus.ErrorNeedRestart;
                         return;
@@ -306,10 +314,14 @@ namespace GoogleDrive
                 switch (Status)
                 {
                     case UploadStatus.Uploading:
+                    case UploadStatus.Creating:
+                    case UploadStatus.Created:
                         {
-                            pauseRequest = true;
                             MessageAppended?.Invoke("Pausing...");
-                            while (Status == UploadStatus.Uploading) await Task.Delay(100);
+                            pauseRequest = true;
+                            await semaphoreSlim.WaitAsync();
+                            MyLogger.Assert(Status != UploadStatus.Uploading);
+                            //while (Status == UploadStatus.Uploading) await Task.Delay(100);
                             MessageAppended?.Invoke("Paused");
                             pauseRequest = false;
                             return;

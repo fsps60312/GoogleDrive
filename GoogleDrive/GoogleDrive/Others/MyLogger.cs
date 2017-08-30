@@ -32,18 +32,6 @@ namespace GoogleDrive
                 Log(name);
             }
         }
-        public delegate void Progress1ChangedEventHandler(double progress);
-        public static event Progress1ChangedEventHandler Progress1Changed;
-        public static void SetProgress1(double progress) { Progress1Changed?.Invoke(progress); }
-        public delegate void Progress2ChangedEventHandler(double progress);
-        public static event Progress2ChangedEventHandler Progress2Changed;
-        public static void SetProgress2(double progress) { Progress2Changed?.Invoke(progress); }
-        public delegate void Status1ChangedEventHandler(string status);
-        public static event Status1ChangedEventHandler Status1Changed;
-        public static void SetStatus1(string status) { Status1Changed?.Invoke(status); }
-        public delegate void Status2ChangedEventHandler(string status);
-        public static event Status2ChangedEventHandler Status2Changed;
-        public static void SetStatus2(string status) { Status2Changed?.Invoke(status); }
         public delegate void LogAppendedEventHandler(string log);
         public static event LogAppendedEventHandler LogAppended;
         public static void Log(string log) { System.Diagnostics.Debug.WriteLine(log); Status = log; LogAppended?.Invoke(log); }

@@ -37,47 +37,61 @@ namespace GoogleDrive
                             case NetworkStatus.NotStarted:
                                 {
                                     Status = NetworkStatus.Networking;
-                                    var fc = new Modifiers.FolderCreater(cloudFolder, windowsFolder.Name);
-                                    fc.MessageAppended += (msg) => { OnMessageAppended($"[FC]{msg}"); };
-                                    fc.StatusChanged += async delegate
-                                    {
-                                        if (fc.Status == NetworkStatus.Completed)
-                                        {
-                                            OnMessageAppended("Folder created");
-                                            UploadedCloudFolder = fc.CreatedCloudFolder;
-                                            OnProgressChanged(1, 1);
-                                            IsBusy = true;
-                                            //NetworkingCount--;
-                                            foreach (var f in await windowsFolder.GetFilesAsync())
-                                            {
-                                                subTasks.Add(new FileUploader(fc.CreatedCloudFolder, f, f.Name));
-                                            }
-                                            foreach (var f in await windowsFolder.GetFoldersAsync())
-                                            {
-                                                subTasks.Add(new FolderUploader(fc.CreatedCloudFolder, f));
-                                            }
-                                            IsBusy = false;
-                                            //foreach (var st in subTasks)
-                                            //{
-                                            //    await st.StartAsync();
-                                            //}
-                                            await Task.WhenAll(subTasks.Select(async (st) => { await st.StartAsync(); }));
-                                            //NetworkingCount++;
-                                            Status = NetworkStatus.Completed;
-                                        }
-                                    };
+                                    var fc = new Modifiers.FolderCreator(cloudFolder, windowsFolder.Name);
+                                    var messageAppendedEventHandler = new MessageAppendedEventHandler((msg) => { OnMessageAppended($"[FC]{msg}"); });
                                     OnMessageAppended("Creating folder...");
-                                    await fc.StartAsync();
+                                    fc.MessageAppended += messageAppendedEventHandler;
+                                    await fc.StartUntilCompletedAsync();
+                                    fc.MessageAppended -= messageAppendedEventHandler;
+                                    //switch (fc.Status)
+                                    //{
+                                    //    case NetworkStatus.Completed:
+                                    //        {
+                                    OnMessageAppended("Folder created");
+                                    UploadedCloudFolder = fc.CreatedCloudFolder;
+                                    OnProgressChanged(0, 0);
+                                    //NetworkingCount--;
+                                    foreach (var f in await windowsFolder.GetFilesAsync())
+                                    {
+                                        subTasks.Add(new FileUploader(fc.CreatedCloudFolder, f, f.Name));
+                                    }
+                                    foreach (var f in await windowsFolder.GetFoldersAsync())
+                                    {
+                                        subTasks.Add(new FolderUploader(fc.CreatedCloudFolder, f));
+                                    }
+                                    OnProgressChanged(0, subTasks.Count);
+                                    //foreach (var st in subTasks)
+                                    //{
+                                    //    await st.StartAsync();
+                                    //}
+                                    int progress = 0;
+                                    await Task.WhenAll(subTasks.Select(async (st) =>
+                                    {
+                                        await st.StartUntilCompletedAsync();
+                                        OnProgressChanged(++progress, subTasks.Count);
+                                    }));
+                                    //NetworkingCount++;
+                                    Status = NetworkStatus.Completed;
+                                    return;
+                                    //        }
+                                    //    case NetworkStatus.ErrorNeedRestart:
+                                    //        {
+                                    //            this.Status = NetworkStatus.ErrorNeedRestart;
+                                    //            return;
+                                    //        }
+                                    //    default: throw new Exception($"Status: {Status}");
+                                    //}
                                 }
-                                break;
                             case NetworkStatus.Paused:
                                 {
                                     Status = NetworkStatus.Networking;
                                     await Task.WhenAll(subTasks.Select(async (st) => { await st.StartAsync(); }));
                                     Status = NetworkStatus.Completed;
-                                }
-                                break;
-                            default: throw new Exception($"Status: {Status}");
+                                }break;
+                            default:
+                                {
+                                    OnMessageAppended($"Status: {Status}, no way to start");
+                                }break;
                         }
                     }
                     catch(Exception error)
@@ -89,7 +103,7 @@ namespace GoogleDrive
                         await WaitSemaphoreSlim();
                     }
                 }
-                public override async Task PauseAsync()
+                protected override async Task PausePrivateAsync()
                 {
                     switch(Status)
                     {
@@ -98,13 +112,17 @@ namespace GoogleDrive
                                 await Task.WhenAll(subTasks.Select(async (st) => { await st.PauseAsync(); }));
                                 Status = NetworkStatus.Paused;
                             }break;
-                        default: throw new Exception($"Status: {Status}");
+                        default:
+                            {
+                                OnMessageAppended($"Status: {Status}, no way to pause");
+                            }break;
                     }
                 }
                 public override async Task ResetAsync()
                 {
-                    await Task.Delay(1000);
-                    throw new NotImplementedException();
+                    await MyLogger.Alert("FolderUploader currently not support Reset()");
+                    //await Task.Delay(1000);
+                    //throw new NotImplementedException();
                 }
             }
         }

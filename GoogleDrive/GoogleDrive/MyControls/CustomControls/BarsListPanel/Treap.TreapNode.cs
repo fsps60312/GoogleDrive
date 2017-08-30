@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading.Tasks;
 
 namespace GoogleDrive.MyControls.BarsListPanel
 {
@@ -78,6 +79,17 @@ namespace GoogleDrive.MyControls.BarsListPanel
                 animationStartTimeTag = DateTime.MinValue;
                 yOffsetTag = 0;
             }
+            public double QueryFinalYOffset()
+            {
+                if (animationStartTime == DateTime.MinValue)
+                {
+                    return yOffset;
+                }
+                else
+                {
+                    return yOffset + animationOffset;
+                }
+            }
             public double QueryYOffset()
             {
                 if (animationStartTime == DateTime.MinValue)
@@ -135,7 +147,17 @@ namespace GoogleDrive.MyControls.BarsListPanel
             }
             public static void Split(TreapNode o, out TreapNode a, out TreapNode b, int position)
             {
-                MyLogger.Assert(0 <= position && position <= GetSize(o));
+                if(position<0)
+                {
+                    MyLogger.Log($"TreapNode: position = {position}");
+                    position = 0;
+                }
+                if(position>GetSize(o))
+                {
+                    MyLogger.Log($"TreapNode: position = {position}");
+                    position = GetSize(o);
+                }
+                //MyLogger.Assert(0 <= position && position <= GetSize(o));
                 if (o == null) { a = b = null; return; }
                 o.PutDown();
                 if (position <= GetSize(o.l))
