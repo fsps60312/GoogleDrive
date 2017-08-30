@@ -11,6 +11,8 @@ namespace GoogleDrive
         {
             public class FileUploader:Networker
             {
+                public event RestRequests.ChunkSentEventHandler ChunkSent;
+                private void OnChunkSent(long coda) { ChunkSent?.Invoke(coda); OnChunkProcceeded(coda); }
                 public override string ToString()
                 {
                     return $"[U]{fileName}  \t↑: {CloudFolder.Name}";
@@ -72,6 +74,7 @@ namespace GoogleDrive
                 {
                     try
                     {
+                        OnTotalFilesRemainChanged(1);
                         switch (Status)
                         {
                             case NetworkStatus.ErrorNeedRestart:
@@ -102,13 +105,19 @@ namespace GoogleDrive
                                     {
                                         OnMessageAppended($"[Rest]{msg}");
                                     });
+                                    var chunkSentEventHandler = new RestRequests.ChunkSentEventHandler((coda) =>
+                                      {
+                                          OnChunkSent(coda);
+                                      });
                                     int timeToWait = 500;
                                     uploadAgain_index:;
                                     uploader.ProgressChanged += progressChangedEventHandler;
                                     uploader.MessageAppended += messageAppendedEventHandler;
+                                    uploader.ChunkSent += chunkSentEventHandler;
                                     await uploader.UploadAsync();
                                     uploader.ProgressChanged -= progressChangedEventHandler;
                                     uploader.MessageAppended -= messageAppendedEventHandler;
+                                    uploader.ChunkSent -= chunkSentEventHandler;
                                     switch (uploader.Status)
                                     {
                                         case RestRequests.Uploader.UploadStatus.Completed:
@@ -159,6 +168,10 @@ namespace GoogleDrive
                     {
                         OnMessageAppended($"[Unexpected]{error}");
                         Status = NetworkStatus.ErrorNeedRestart;
+                    }
+                    finally
+                    {
+                        OnTotalFilesRemainChanged(-1);
                     }
                 }
             }

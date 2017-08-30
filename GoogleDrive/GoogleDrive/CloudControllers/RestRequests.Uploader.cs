@@ -61,35 +61,56 @@ namespace GoogleDrive
                 }
                 Status = UploadStatus.Uploading;
                 long chunkSize = MinChunkSize;
-                for (; position != fileStream.Length;)
+                long bytesLeftStatistics = fileStream.Length - position;
+                CloudFile.Networker.OnTotalAmountRemainChanged(bytesLeftStatistics);
+                try
                 {
-                    var bufferSize = Math.Min(chunkSize, fileStream.Length - position);
-                    byte[] buffer = new byte[bufferSize];
-                    int actualLength = 0;
-                    while (actualLength < Math.Min(bufferSize, MinChunkSize))
+                    for (; position != fileStream.Length;)
                     {
-                        fileStream.Position = position + actualLength;
-                        actualLength += await fileStream.ReadAsync(buffer, actualLength, (int)bufferSize - actualLength);
+                        var bufferSize = Math.Min(chunkSize, fileStream.Length - position);
+                        byte[] buffer = new byte[bufferSize];
+                        int actualLength = 0;
+                        while (actualLength < Math.Min(bufferSize, MinChunkSize))
+                        {
+                            fileStream.Position = position + actualLength;
+                            actualLength += await fileStream.ReadAsync(buffer, actualLength, (int)bufferSize - actualLength);
+                        }
+                        Array.Resize<byte>(ref buffer, actualLength);
+                        DateTime startTime = DateTime.Now;
+                        await DoResumableUploadAsync(position, buffer);
+                        OnProgressChanged(position = byteReceivedSoFar, fileStream.Length);
+                        if (Status == UploadStatus.Completed)
+                        {
+                            OnChunkSent(buffer.Length);
+                            bytesLeftStatistics -= buffer.Length;
+                            CloudFile.Networker.OnTotalAmountRemainChanged(-buffer.Length);
+                            return;
+                        }
+                        else if (Status != UploadStatus.Uploading)
+                        {
+                            MessageAppended?.Invoke($"Failed! Chunk range: {position}-{position + buffer.Length - 1}");
+                            return;
+                        }
+                        else
+                        {
+                            OnChunkSent(buffer.Length);
+                            bytesLeftStatistics -= buffer.Length;
+                            CloudFile.Networker.OnTotalAmountRemainChanged(-buffer.Length);
+                        }
+                        if ((DateTime.Now - startTime).TotalSeconds < 0.2) chunkSize += chunkSize / 2;
+                        else chunkSize = Math.Max(MinChunkSize, chunkSize / 2);
+                        //MyLogger.Log($"Sent: {i + chunkSize}/{fileStream.Length} bytes");
+                        if (pauseRequest)
+                        {
+                            Status = UploadStatus.Paused;
+                            lock (semaphoreSlim) semaphoreSlim.Release();
+                            return;
+                        }
                     }
-                    Array.Resize<byte>(ref buffer, actualLength);
-                    DateTime startTime = DateTime.Now;
-                    await DoResumableUploadAsync(position, buffer);
-                    OnProgressChanged(position = byteReceivedSoFar, fileStream.Length);
-                    if (Status == UploadStatus.Completed) return;
-                    else if (Status != UploadStatus.Uploading)
-                    {
-                        MessageAppended?.Invoke($"Failed! Chunk range: {position}-{position + buffer.Length - 1}");
-                        return;
-                    }
-                    if ((DateTime.Now - startTime).TotalSeconds < 0.2) chunkSize += chunkSize / 2;
-                    else chunkSize = Math.Max(MinChunkSize, chunkSize / 2);
-                    //MyLogger.Log($"Sent: {i + chunkSize}/{fileStream.Length} bytes");
-                    if (pauseRequest)
-                    {
-                        Status = UploadStatus.Paused;
-                        lock (semaphoreSlim) semaphoreSlim.Release();
-                        return;
-                    }
+                }
+                finally
+                {
+                    CloudFile.Networker.OnTotalAmountRemainChanged(-bytesLeftStatistics);
                 }
             }
             private async Task CreateResumableUploadAsync(IList<string> parents)
@@ -370,6 +391,8 @@ namespace GoogleDrive
             public event ProgressChangedEventHandler ProgressChanged;
             private void OnProgressChanged(long bytesSent, long totalLength) { ProgressChanged?.Invoke(bytesSent, totalLength); }
             #endregion
+            public event ChunkSentEventHandler ChunkSent;
+            private void OnChunkSent(long coda) { ChunkSent?.Invoke(coda); }
         }
     }
 }

@@ -9,6 +9,7 @@ namespace GoogleDrive
 {
     partial class RestRequests
     {
+        public delegate void ChunkSentEventHandler(long chunkSize);
         const int MinChunkSize = 262144 * 2;
         private static async Task<string> LogHttpWebResponse(HttpWebResponse response, bool readStream)
         {

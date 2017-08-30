@@ -9,6 +9,11 @@ namespace GoogleDrive
     {
         public abstract class Networker
         {
+            public static event RestRequests.ChunkSentEventHandler ChunkProcceeded, TotalAmountRemainChanged, TotalFilesRemainChanged, TotalFoldersRemainChanged;
+            protected static void OnChunkProcceeded(long coda) { ChunkProcceeded?.Invoke(coda); }
+            public static void OnTotalAmountRemainChanged(long coda) { TotalAmountRemainChanged?.Invoke(coda); }
+            protected static void OnTotalFilesRemainChanged(long coda) { TotalFilesRemainChanged?.Invoke(coda); }
+            protected static void OnTotalFoldersRemainChanged(long coda) { TotalFoldersRemainChanged?.Invoke(coda); }
             public delegate void NewTaskCreatedEventHandler(Networker networker);
             static Networker()
             {

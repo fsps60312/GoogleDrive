@@ -29,6 +29,7 @@ namespace GoogleDrive
                     Status = NetworkStatus.Networking;
                     try
                     {
+                        OnTotalFoldersRemainChanged(1);
                         OnMessageAppended("Creating folder...");
                         var folderCreator = new RestRequests.FileCreator(cloudFolder.Id, folderName, true);
                         var eventHandler = new MessageAppendedEventHandler((log) => { OnMessageAppended($"[Rest]{log}"); });
@@ -61,6 +62,10 @@ namespace GoogleDrive
                         OnMessageAppended(error.ToString());
                         Status = NetworkStatus.ErrorNeedRestart;
                         return;
+                    }
+                    finally
+                    {
+                        OnTotalFoldersRemainChanged(-1);
                     }
                 }
                 protected override async Task PausePrivateAsync()
