@@ -283,43 +283,44 @@ namespace GoogleDrive
                     GDstatus.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
                     GDstatus.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Auto) });
                     GDstatus.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Auto) });
-                    GDstatus.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Auto) });
+                    //GDstatus.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Auto) });
                     int columnNumber = 0;
                     {
                         LBstatus = new Label { Text = "Initializing..." };
                         GDstatus.Children.Add(new ScrollView { Orientation = ScrollOrientation.Horizontal, Content = LBstatus }, columnNumber++, 0);
                     }
-                    {
-                        var lbl = new MyLabel("Auto Scroll") { IsVisible = false, Opacity = 0, FontAttributes = FontAttributes.Bold, VerticalTextAlignment = TextAlignment.Center };
-                        SWautoScroll = new MySwitch("Auto Scroll", "Manual Scroll") { IsToggled = true };
-                        System.Threading.SemaphoreSlim semaphoreSlim = new System.Threading.SemaphoreSlim(1, 1);
-                        bool animationCompletedWith = true;
-                        SWautoScroll.Toggled += async delegate
-                        {
-                            bool backUp = SWautoScroll.IsToggled;
-                            try
-                            {
-                                await semaphoreSlim.WaitAsync();
-                                lbl.Text = (SWautoScroll.IsToggled ? "Auto Scroll" : "Manual Scroll");
-                                if (backUp != SWautoScroll.IsToggled || animationCompletedWith == backUp) return;
-                                lbl.IsVisible = true;
-                                await lbl.FadeTo(1);
-                                await Task.Delay(1000);
-                                await lbl.FadeTo(0);
-                                lbl.IsVisible = false;
-                                animationCompletedWith = backUp;
-                            }
-                            finally
-                            {
-                                lock (semaphoreSlim)semaphoreSlim.Release();
-                            }
-                        };
-                        GDstatus.Children.Add(lbl, columnNumber++, 0);
-                    }
+                    //{
+                    //    var lbl = new MyLabel("Auto Scroll") { IsVisible = false, Opacity = 0, FontAttributes = FontAttributes.Bold, VerticalTextAlignment = TextAlignment.Center };
+                    //    SWautoScroll = new MySwitch("Auto Scroll", "Manual Scroll") { IsToggled = true };
+                    //    System.Threading.SemaphoreSlim semaphoreSlim = new System.Threading.SemaphoreSlim(1, 1);
+                    //    bool animationCompletedWith = true;
+                    //    SWautoScroll.Toggled += async delegate
+                    //    {
+                    //        bool backUp = SWautoScroll.IsToggled;
+                    //        try
+                    //        {
+                    //            await semaphoreSlim.WaitAsync();
+                    //            lbl.Text = (SWautoScroll.IsToggled ? "Auto Scroll" : "Manual Scroll");
+                    //            if (backUp != SWautoScroll.IsToggled || animationCompletedWith == backUp) return;
+                    //            lbl.IsVisible = true;
+                    //            await lbl.FadeTo(1);
+                    //            await Task.Delay(1000);
+                    //            await lbl.FadeTo(0);
+                    //            lbl.IsVisible = false;
+                    //            animationCompletedWith = backUp;
+                    //        }
+                    //        finally
+                    //        {
+                    //            lock (semaphoreSlim)semaphoreSlim.Release();
+                    //        }
+                    //    };
+                    //    GDstatus.Children.Add(lbl, columnNumber++, 0);
+                    //}
                     {
                         //SwitchCell SWautoScroll = new SwitchCell();
                         //GDstatus.Children.Add(new TableView {Root=new TableRoot {Content=new TableSection { Content = { SWautoScroll} } } }, 1, 0);
                         //new TableRoot().
+                        SWautoScroll = new MySwitch("Auto Scroll", "Manual Scroll") { IsToggled = true };
                         GDstatus.Children.Add(SWautoScroll, columnNumber++, 0);
                     }
                     {

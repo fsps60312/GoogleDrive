@@ -220,10 +220,24 @@ namespace GoogleDrive.MyControls
         public bool BTNmessageEnabled { private set; get; }
         private string messages = "";
         string[] status = new string[3];// { "Initializing", "(87.9487%) 1.23 MB / 7.6 GB","(log)" };
+        //System.Threading.SemaphoreSlim semaphoreSlim = new System.Threading.SemaphoreSlim(1, 1);
+        //DateTime lastUpdate = DateTime.MinValue;
         private void UpdateStatus(int i, string text)
         {
             status[i] = text;
+            //var updateTime = DateTime.Now;
+            //await semaphoreSlim.WaitAsync();
+            //try
+            //{
+            //    if (updateTime <= lastUpdate) return;
+            //    lastUpdate = updateTime;
             LBstatus = String.Join(" ", status);
+            //    await Task.Delay(100);
+            //}
+            //finally
+            //{
+            //    lock (semaphoreSlim) semaphoreSlim.Release();
+            //}
         }
         public NetworkingItemBarViewModel(CloudFile.Networker _networker)
         {
@@ -307,7 +321,7 @@ namespace GoogleDrive.MyControls
                     {
                         BTNcontrolEnabled = false;
                         BTNcontrol = "\u2714";
-                        await System.Threading.Tasks.Task.Delay(1000);
+                        await System.Threading.Tasks.Task.Delay(5000);
                         await OnDisposed();
                     }
                     break;
@@ -315,7 +329,6 @@ namespace GoogleDrive.MyControls
                     {
                         BTNcontrolEnabled = true;
                         BTNcontrol = "\u23f8";
-                        Progress = 0;
                     }
                     break;
                 case CloudFile.Networker.NetworkStatus.ErrorNeedRestart:
@@ -327,7 +340,7 @@ namespace GoogleDrive.MyControls
                 case CloudFile.Networker.NetworkStatus.NotStarted:
                     {
                         BTNcontrolEnabled = true;
-                        BTNcontrol = "\u25b6";
+                        BTNcontrol = "\u23f0";
                     }
                     break;
                 case CloudFile.Networker.NetworkStatus.Paused:

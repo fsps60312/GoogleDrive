@@ -14,8 +14,7 @@ namespace GoogleDrive
                 {
                     return $"[FC]{folderName}  \t↑: {cloudFolder.Name}";
                 }
-                public delegate void NewFolderCreateCreatedEventHandler(FolderCreator folderCreator);
-                public static event NewFolderCreateCreatedEventHandler NewFolderCreateCreated;
+                public static event NewTaskCreatedEventHandler NewFolderCreateCreated;
                 CloudFile cloudFolder;
                 string folderName;
                 public CloudFile CreatedCloudFolder { get; private set; }

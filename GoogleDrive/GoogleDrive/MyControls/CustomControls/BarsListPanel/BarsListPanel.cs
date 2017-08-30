@@ -16,6 +16,10 @@ namespace GoogleDrive.MyControls.BarsListPanel
     }
     class BarsListPanel<GenericView,DataType>:MyContentView where DataType:MyDisposable where GenericView : Xamarin.Forms.View, IDataBindedView<DataType>,new()
     {
+        public delegate void DataEventHandler(DataType data);
+        public event DataEventHandler DataInserted, DataRemoved;
+        private void OnDataInserted(DataType data) { DataInserted?.Invoke(data); }
+        private void OnDataRemoved(DataType data) { DataRemoved?.Invoke(data); }
         protected double AnimationDuration { get { return Treap<DataType>.animationDuration; } }
         protected double ItemHeight
         {
@@ -47,6 +51,7 @@ namespace GoogleDrive.MyControls.BarsListPanel
                 data.HeightChanged -= heightChangedEventHandler;
                 treap.Delete(o);
                 OnTreapLayoutChanged();
+                OnDataRemoved(data);
             });
             heightChangedEventHandler = new MyDisposable.HeightChangedEventHandler((difference) =>
               {
@@ -55,6 +60,7 @@ namespace GoogleDrive.MyControls.BarsListPanel
               });
             data.Disposed += disposedEventHandler;
             data.HeightChanged += heightChangedEventHandler;
+            OnDataInserted(data);
         }
         public void PushFront(DataType data)
         {
@@ -94,27 +100,29 @@ namespace GoogleDrive.MyControls.BarsListPanel
         }
         private int UponIndex()
         {
-            int l = 0, r = treap.Count - 1;
-            while (l < r)
-            {
-                int mid = (l + r + 1) / 2;
-                if (treap.Query(mid) > SVmain.ScrollY) r = mid-1;
-                else l = mid;
-            }
-            MyLogger.Assert(l == r);
-            return r;
+            return Math.Max(0, Math.Min(treap.Count - 1, treap.QueryLowerBound(SVmain.ScrollY) - 1));
+            //int l = 0, r = treap.Count - 1;
+            //while (l < r)
+            //{
+            //    int mid = (l + r + 1) / 2;
+            //    if (treap.Query(mid) > SVmain.ScrollY) r = mid-1;
+            //    else l = mid;
+            //}
+            //MyLogger.Assert(l == r);
+            //return r;
         }
         private int DownIndex()
         {
-            int l = 0, r = treap.Count - 1;
-            while (l < r)
-            {
-                int mid = (l + r + 1) / 2;
-                if (treap.Query(mid) >= SVmain.ScrollY + SVmain.Height) r = mid - 1;
-                else l = mid;
-            }
-            MyLogger.Assert(l == r);
-            return r;
+            return Math.Max(0, Math.Min(treap.Count - 1, treap.QueryLowerBound(SVmain.ScrollY + SVmain.Height) - 1));
+            //int l = 0, r = treap.Count - 1;
+            //while (l < r)
+            //{
+            //    int mid = (l + r + 1) / 2;
+            //    if (treap.Query(mid) >= SVmain.ScrollY + SVmain.Height) r = mid - 1;
+            //    else l = mid;
+            //}
+            //MyLogger.Assert(l == r);
+            //return r;
         }
         volatile bool isLayoutRunning = false, needRunAgain = false;
         private bool UpdateLayout()
@@ -127,6 +135,7 @@ namespace GoogleDrive.MyControls.BarsListPanel
                 MyAbsoluteLayout.SetLayoutBounds(LBend, BarsLayoutMethod(o.QueryYOffset()).Item1);
                 ALmain.HeightRequest = o.QueryYOffset() + treap.itemHeight;
             }));
+            ALmain.BatchBegin();
             if (treap.Count > 0)
             {
                 int l = UponIndex(), r = DownIndex();
@@ -141,11 +150,11 @@ namespace GoogleDrive.MyControls.BarsListPanel
                         }
                         else if (!answer)
                         {
+                            answer = true;
                             var c = GetGenericView();
                             MyAbsoluteLayout.SetLayoutBounds(c,BarsLayoutMethod(o.QueryYOffset()).Item1);
                             c.Reset(o.data);
                             ChildrenInUse[o.data] = c;
-                            answer = true;
                         }
                     }));
                 }
@@ -158,6 +167,7 @@ namespace GoogleDrive.MyControls.BarsListPanel
                 v.IsVisible = false;
                 AvaiableChildrenPool.Push(v);
             }
+            ALmain.BatchCommit();
             return answer;
         }
         private void AnimateLayout()

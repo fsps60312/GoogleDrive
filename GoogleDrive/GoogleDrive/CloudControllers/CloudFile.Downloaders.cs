@@ -14,8 +14,7 @@ namespace GoogleDrive
                 {
                     return $"[D]{CloudFile.Name}";
                 }
-                public delegate void NewFileDownloadCreatedEventHandler(FileDownloader downloader);
-                public static event NewFileDownloadCreatedEventHandler NewFileDownloadCreated;
+                public static event NewTaskCreatedEventHandler NewFileDownloadCreated;
                 const string CacheFolder = "DownloadFileCache";
                 public CloudFile CloudFile
                 {

@@ -336,8 +336,9 @@ namespace GoogleDrive
                             pauseRequest = false;
                             if(Status == UploadStatus.Uploading)
                             {
-                                MyLogger.Log("Failed to pause");
-                                MessageAppended?.Invoke("Failed to pause");
+                                var msg = $"Status: {Status}, failed to pause";
+                                MyLogger.Log(msg);
+                                MessageAppended?.Invoke(msg);
                             }
                             //MessageAppended?.Invoke($"Status after paused: {Status}");
                             //if () await MyLogger.Alert($"Status after paused: {Status}");

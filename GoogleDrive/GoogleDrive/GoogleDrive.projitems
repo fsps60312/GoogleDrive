@@ -48,7 +48,6 @@
     <Compile Include="$(MSBuildThisFileDirectory)Others\Libraries.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Pages\FileBrowsePage.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Pages\FileTransferPage.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)Pages\FileTransferPanels\BasicStylePanel.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Pages\LogPage.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Pages\MainPage.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Others\MyLogger.cs" />

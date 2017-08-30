@@ -15,8 +15,7 @@ namespace GoogleDrive
                 {
                     return $"[U]{fileName}  \t↑: {CloudFolder.Name}";
                 }
-                public delegate void NewFileUploadCreatedEventHandler(FileUploader uploader);
-                public static event NewFileUploadCreatedEventHandler NewFileUploadCreated;
+                public static event NewTaskCreatedEventHandler NewFileUploadCreated;
                 CloudFile CloudFolder;
                 public CloudFile UploadedCloudFile
                 {

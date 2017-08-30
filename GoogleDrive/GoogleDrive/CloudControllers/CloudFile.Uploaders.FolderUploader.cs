@@ -15,8 +15,7 @@ namespace GoogleDrive
                 {
                     return $"[FU]{windowsFolder.Name}  \t↑: {cloudFolder.Name}";
                 }
-                public delegate void NewFolderUploadCreatedEventHandler(FolderUploader uploader);
-                public static event NewFolderUploadCreatedEventHandler NewFolderUploadCreated;
+                public static event NewTaskCreatedEventHandler NewFolderUploadCreated;
                 CloudFile cloudFolder;
                 Windows.Storage.StorageFolder windowsFolder;
                 public CloudFile UploadedCloudFolder { get; private set; } = null;
@@ -77,7 +76,7 @@ namespace GoogleDrive
                                         IEnumerable<Task> tasks;
                                         lock (subTasks)
                                         {
-                                            tasks = subTasks.Select(async (st) =>
+                                            tasks = subTasks.ToList().Select(async (st) =>
                                              {
                                                  await st.WaitUntilCompletedAsync();
                                                  OnProgressChanged(++progress, subTasks.Count);
@@ -90,7 +89,7 @@ namespace GoogleDrive
                                         IEnumerable<Task> tasks;
                                         lock (subTasks)
                                         {
-                                            tasks = subTasks.Select(async (st) =>
+                                            tasks = subTasks.ToList().Select(async (st) =>
                                             {
                                                 await st.StartUntilCompletedAsync();
                                                 OnProgressChanged(++progress, subTasks.Count);
@@ -117,7 +116,7 @@ namespace GoogleDrive
                             case NetworkStatus.Paused:
                                 {
                                     Status = NetworkStatus.Networking;
-                                    await Task.WhenAll(subTasks.Select(async (st) => { await st.StartAsync(); }));
+                                    await Task.WhenAll(subTasks.ToList().Select(async (st) => { await st.StartAsync(); }));
                                     //Status = NetworkStatus.Completed;
                                 }break;
                             default:
@@ -141,7 +140,7 @@ namespace GoogleDrive
                     {
                         case NetworkStatus.Networking:
                             {
-                                await Task.WhenAll(subTasks.Select(async (st) => { await st.PauseAsync(); }));
+                                await Task.WhenAll(subTasks.ToList().Select(async (st) => { await st.PauseAsync(); }));
                                 Status = NetworkStatus.Paused;
                             }break;
                         default:

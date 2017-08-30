@@ -9,6 +9,7 @@ namespace GoogleDrive
     {
         public abstract class Networker
         {
+            public delegate void NewTaskCreatedEventHandler(Networker networker);
             static Networker()
             {
                 //MyLogger.Test2 = new Func<Task>(async () => { await MyLogger.Alert($"NetworkingCount: {NetworkingCount}"); });
@@ -83,6 +84,7 @@ namespace GoogleDrive
                 }
                 isPausing = true;
                 await PausePrivateAsync();
+                isPausing = false;
             }
             public async Task WaitUntilCompletedAsync()
             {

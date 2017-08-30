@@ -28,8 +28,8 @@ namespace GoogleDrive.MyControls.BarsListPanel
             //        if (_r != null) _r.parent = this;
             //    }
             //}
-            volatile private TreapNode l = null, r = null, parent = null;
-            private uint priority = BitConverter.ToUInt32(Guid.NewGuid().ToByteArray(), 0);
+            private static volatile Random rand = new Random();
+            private TreapNode l = null, r = null, parent = null;
             private double yOffset, yOffsetTag = 0;
             private DateTime animationStartTime = DateTime.MinValue, animationStartTimeTag = DateTime.MinValue;
             private double animationOffset, animationOffsetTag;
@@ -79,6 +79,12 @@ namespace GoogleDrive.MyControls.BarsListPanel
                 animationStartTimeTag = DateTime.MinValue;
                 yOffsetTag = 0;
             }
+            public int QueryLowerBound(double targetY)
+            {
+                PutDown();
+                if (this.QueryYOffset() >= targetY) return (l == null ? 0 : l.QueryLowerBound(targetY));
+                else return GetSize(l) + (r == null ? 1 : r.QueryLowerBound(targetY) + 1);
+            }
             public double QueryFinalYOffset()
             {
                 if (animationStartTime == DateTime.MinValue)
@@ -126,7 +132,7 @@ namespace GoogleDrive.MyControls.BarsListPanel
             public static TreapNode Merge(TreapNode a, TreapNode b)
             {
                 if (a == null || b == null) return a ?? b;
-                if (a.priority > b.priority)
+                if (rand.NextDouble() < (double)GetSize(a) / (GetSize(a) + GetSize(b)))
                 {
                     a.PutDown();
                     if (a.r != null) a.r.parent = null;

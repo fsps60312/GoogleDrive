@@ -8,6 +8,10 @@ namespace GoogleDrive.MyControls.BarsListPanel
         //{
         //    Insert(, 0);
         //}
+        public delegate void TreapDataEventHandler(DataType data);
+        public event TreapDataEventHandler DataInserted, DataRemoved;
+        private void OnDataInserted(DataType data) { DataInserted?.Invoke(data); }
+        private void OnDataRemoved(DataType data) { DataRemoved?.Invoke(data); }
         TreapNode root = new TreapNode(default(DataType), 0);
         public static double animationDuration = 500;
         public double itemHeight = 50;
@@ -30,13 +34,27 @@ namespace GoogleDrive.MyControls.BarsListPanel
         public TreapNode Insert(DataType data, int position)
         {
             var height = QueryFinal(position);// (position <= Count ?  : position * itemHeight);
+            try
+            {
+                lock (root)
+                {
+                    TreapNode.Split(root, out TreapNode a, out TreapNode b, position);
+                    if (b != null) b.AppendAnimation(DateTime.Now, itemHeight);
+                    var o = new TreapNode(data, height);
+                    root = TreapNode.Merge(a, TreapNode.Merge(o, b));
+                    return o;
+                }
+            }
+            finally
+            {
+                OnDataInserted(data);
+            }
+        }
+        public int QueryLowerBound(double targetY)
+        {
             lock (root)
             {
-                TreapNode.Split(root, out TreapNode a, out TreapNode b, position);
-                if (b != null) b.AppendAnimation(DateTime.Now, itemHeight);
-                var o = new TreapNode(data, height);
-                root = TreapNode.Merge(a, TreapNode.Merge(o, b));
-                return o;
+                return (root == null ? 0 : root.QueryLowerBound(targetY));
             }
         }
         private double QueryFinal(int position)
@@ -60,6 +78,7 @@ namespace GoogleDrive.MyControls.BarsListPanel
                 TreapNode.Split(b, out TreapNode a, out b, position);
                 if (c != null) c.AppendAnimation(DateTime.Now, -itemHeight);
                 root = TreapNode.Merge(a, c);
+                OnDataRemoved(b.data);
                 return b;
             }
         }
