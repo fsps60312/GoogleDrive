@@ -19,7 +19,7 @@ namespace GoogleDrive
                 this.Children.Add(PGfileBrowse);
             }
             {
-                PGfileTransfer = new FileTransferPage();
+                PGfileTransfer = new StatusPage();
                 //PGfileTransfer.Icon = "StoreLogo.png";
                 this.Children.Add(new NavigationPage(PGfileTransfer) { Title = PGfileTransfer.Title });
                 //PGfileTransfer.Title = null;
@@ -31,6 +31,6 @@ namespace GoogleDrive
 
         LogPage PGlog;
         FileBrowsePage PGfileBrowse;
-        FileTransferPage PGfileTransfer;
+        StatusPage PGfileTransfer;
     }
 }

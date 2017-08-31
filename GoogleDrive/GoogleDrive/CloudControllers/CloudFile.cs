@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
-using System.Linq;
 
 namespace GoogleDrive
 {
@@ -10,15 +9,6 @@ namespace GoogleDrive
 
     partial class CloudFile
     {
-        //public class Verifiers
-        //{
-        //    public class FileVerifier : Networker
-        //    {
-        //        public FileVerifier(CloudFile cloudFile, Windows.Storage.StorageFile windowsFile)
-        //        {
-        //        }
-        //    }
-        //}
         #region Fields
         public string Id { get; private set; }
         public string Name { get; private set; }

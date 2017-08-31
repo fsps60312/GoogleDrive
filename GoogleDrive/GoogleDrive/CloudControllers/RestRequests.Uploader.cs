@@ -40,7 +40,7 @@ namespace GoogleDrive
                 fileStream.Position = 0;
                 string localCheckSum = await Libraries.GetSha256ForWindowsStorageFile(fileStream);
                 MessageAppended?.Invoke($"Local: {localCheckSum}");
-                if (cloudCheckSum == localCheckSum)
+                if (cloudCheckSum != null && cloudCheckSum == localCheckSum)
                 {
                     MessageAppended?.Invoke("Checksum matched!");
                     return UploadStatus.Completed;

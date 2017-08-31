@@ -19,6 +19,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)CloudControllers\CloudFile.SearchListGetter.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)CloudControllers\CloudFile.Uploaders.FileUploader.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)CloudControllers\CloudFile.Uploaders.FolderUploader.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)CloudControllers\CloudFile.Verifiers.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)CloudControllers\RestRequests.Downloader.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)CloudControllers\RestRequests.FileGetter.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)CloudControllers\RestRequests.Uploader.cs" />
@@ -48,11 +49,13 @@
     <Compile Include="$(MSBuildThisFileDirectory)Others\Libraries.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Pages\FileBrowsePage.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Pages\FileTransferPage.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Pages\FileVerifyPage.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Pages\LogPage.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Pages\MainPage.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Others\MyLogger.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)MyControls\MyStackPanel.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)CloudControllers\RestRequests.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Pages\StatusPage.cs" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="$(MSBuildThisFileDirectory)App.xaml">

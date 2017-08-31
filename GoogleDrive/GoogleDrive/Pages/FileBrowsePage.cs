@@ -13,7 +13,7 @@ namespace GoogleDrive
         CloudFileExplorePanel PNcloud;
         Grid GDmain,GDcloudPanel;
         StackLayout SPbuttons;
-        Button BTNuploadFile,BTNuploadFolder, BTNdownload,BTNtest;
+        Button BTNuploadFile,BTNuploadFolder, BTNdownload,BTNverify;
         Label LBselected;
         CloudFile fileSelected = null;
         public FileBrowsePage():base("File Browse")
@@ -185,6 +185,66 @@ namespace GoogleDrive
                 }
             }
         }
+        private async Task VerifyFile()
+        {
+            if (fileSelected == null)
+            {
+                await MyLogger.Alert("Cloud File or Folder must be Selected First");
+                return;
+            }
+            switch (Device.RuntimePlatform)
+            {
+                case Device.Windows:
+                    if (fileSelected.IsFolder)
+                    {
+                        var picker = new Windows.Storage.Pickers.FolderPicker()
+                        {
+                            ViewMode = Windows.Storage.Pickers.PickerViewMode.List,
+                            SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.PicturesLibrary
+                        };
+                        picker.FileTypeFilter.Clear();
+                        picker.FileTypeFilter.Add("*");
+                        var folder = await picker.PickSingleFolderAsync();
+                        if (folder != null)
+                        {
+                            var folderToVerify = fileSelected;
+                            MyLogger.Log($"Folder Verifying...\r\nCloud: {folderToVerify.FullName}\r\nLocal: {folder.Path}");
+                            var verifier = new CloudFile.Verifiers.FolderVerifier(folderToVerify, folder);
+                            await verifier.StartUntilCompletedAsync();
+                            var msg = $"Folder Verify succeeded!\r\nCloud: {folderToVerify.FullName}\r\nLocal: {folder.Path}";
+                            MyLogger.Log(msg);
+                            await MyLogger.Alert(msg);
+                        }
+                        MyLogger.Log("All done!");
+                    }
+                    else
+                    {
+                        var picker = new Windows.Storage.Pickers.FileOpenPicker()
+                        {
+                            ViewMode = Windows.Storage.Pickers.PickerViewMode.List,
+                            SuggestedStartLocation = Windows.Storage.Pickers.PickerLocationId.PicturesLibrary
+                        };
+                        picker.FileTypeFilter.Clear();
+                        picker.FileTypeFilter.Add("*");
+                        var file = await picker.PickSingleFileAsync();
+                        if (file != null)
+                        {
+                            var cloudFile = fileSelected;
+                            MyLogger.Log($"File Verifying...\r\nCloud: {cloudFile.FullName}\r\nLocal: {file.Path}");
+                            var verifier = new CloudFile.Verifiers.FileVerifier(cloudFile, file);
+                            await verifier.StartUntilCompletedAsync();
+                            var msg = $"File Verify succeeded!\r\nCloud: {cloudFile.FullName}\r\nLocal: {file.Path}";
+                            MyLogger.Log(msg);
+                            await MyLogger.Alert(msg);
+                        }
+                        MyLogger.Log("All done!");
+                    }
+                    break;
+                default:
+                    await MyLogger.Alert($"File picker currently not supported on {Device.RuntimePlatform} devices.");
+                    break;
+            }
+        }
         void RegisterEvents()
         {
             PNcloud.SelectedFileChanged += delegate (CloudFile file)
@@ -210,18 +270,9 @@ namespace GoogleDrive
                 await DownloadFile();
                 //BTNdownload.IsEnabled = true;
             };
-            BTNtest.Clicked += async delegate
+            BTNverify.Clicked += async delegate
             {
-                BTNtest.IsEnabled = false;
-                //await MyLogger.Test();
-                var picker = new Windows.Storage.Pickers.FileOpenPicker();
-                picker.FileTypeFilter.Clear();
-                picker.FileTypeFilter.Add("*");
-                var file = await picker.PickSingleFileAsync();
-                var stream = await file.OpenStreamForReadAsync();
-                string s1 = await Libraries.GetSha256ForWindowsStorageFile(stream),s2= await Libraries.GetSha256ForCloudFileById(this.fileSelected.Id);
-                await MyLogger.Alert($"{s1}\r\n{s2}\r\n{s1==s2}");
-                BTNtest.IsEnabled = true;
+                await VerifyFile();
             };
         }
         void InitializeControls()
@@ -261,8 +312,8 @@ namespace GoogleDrive
                         SPbuttons.Children.Add(BTNdownload);
                     }
                     {
-                        BTNtest = new Button { Text = "Test" };
-                        SPbuttons.Children.Add(BTNtest);
+                        BTNverify = new Button { Text = "Verify" };
+                        SPbuttons.Children.Add(BTNverify);
                     }
                     GDmain.Children.Add(new Frame { OutlineColor = Color.Accent, Padding = new Thickness(5), Content = SPbuttons }, 1,0);
                 }
