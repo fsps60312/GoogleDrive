@@ -78,7 +78,7 @@ namespace GoogleDrive
                 }
             }
             public List<string> messages = new List<string>();
-            bool isPausing = false;
+            bool pauseRequest = false, isPausing = false;
             public abstract Task ResetAsync();
             public async Task PauseAsync()
             {
@@ -88,6 +88,7 @@ namespace GoogleDrive
                     return;
                 }
                 isPausing = true;
+                pauseRequest = true;
                 await PausePrivateAsync();
                 isPausing = false;
             }
@@ -144,11 +145,11 @@ namespace GoogleDrive
             }
             public async Task StartAsync()
             {
-                isPausing =false;
+                pauseRequest = false;
                 await WaitSemaphoreSlimAsync();
                 try
                 {
-                    if (isPausing)
+                    if (pauseRequest)
                     {
                         //Status = NetworkStatus.Paused;
                         return;

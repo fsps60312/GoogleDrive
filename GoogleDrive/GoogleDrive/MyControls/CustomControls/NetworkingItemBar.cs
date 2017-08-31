@@ -31,12 +31,14 @@ namespace GoogleDrive.MyControls
             {
                 this.Opacity = 0;
                 await semaphoreSlim.WaitAsync();
+                //this.Opacity = 1;
                 await this.FadeTo(1, 500);
                 lock (semaphoreSlim) semaphoreSlim.Release();
             };
             this.Disappearing = new Func<Task>( async() =>
             {
                 await semaphoreSlim.WaitAsync();
+                //this.Opacity = 0;
                 await this.FadeTo(0, 500);
                 lock (semaphoreSlim) semaphoreSlim.Release();
             });
@@ -52,14 +54,14 @@ namespace GoogleDrive.MyControls
             //    NumberOfTapsRequired = 1,
             //    Command = new Xamarin.Forms.Command(async () => { await MyLogger.Alert("Tapped"); })
             //});
-            this.ColumnDefinitions.Add(new Xamarin.Forms.ColumnDefinition { Width = new Xamarin.Forms.GridLength(1, Xamarin.Forms.GridUnitType.Auto) });
+            this.ColumnDefinitions.Add(new Xamarin.Forms.ColumnDefinition { Width = new Xamarin.Forms.GridLength(0, Xamarin.Forms.GridUnitType.Absolute) });
             this.ColumnDefinitions.Add(new Xamarin.Forms.ColumnDefinition { Width = new Xamarin.Forms.GridLength(4, Xamarin.Forms.GridUnitType.Star) });
             this.ColumnDefinitions.Add(new Xamarin.Forms.ColumnDefinition { Width = new Xamarin.Forms.GridLength(4, Xamarin.Forms.GridUnitType.Star) });
             this.ColumnDefinitions.Add(new Xamarin.Forms.ColumnDefinition { Width = new Xamarin.Forms.GridLength(1, Xamarin.Forms.GridUnitType.Star) });
-            this.ColumnDefinitions.Add(new Xamarin.Forms.ColumnDefinition { Width = new Xamarin.Forms.GridLength(1, Xamarin.Forms.GridUnitType.Auto) });
-            this.ColumnDefinitions.Add(new Xamarin.Forms.ColumnDefinition { Width = new Xamarin.Forms.GridLength(1, Xamarin.Forms.GridUnitType.Auto) });
-            this.RowDefinitions.Add(new Xamarin.Forms.RowDefinition { Height = new Xamarin.Forms.GridLength(1, Xamarin.Forms.GridUnitType.Auto) });
-            this.RowDefinitions.Add(new Xamarin.Forms.RowDefinition { Height = new Xamarin.Forms.GridLength(1, Xamarin.Forms.GridUnitType.Auto) });
+            this.ColumnDefinitions.Add(new Xamarin.Forms.ColumnDefinition { Width = new Xamarin.Forms.GridLength(50, Xamarin.Forms.GridUnitType.Absolute) });
+            this.ColumnDefinitions.Add(new Xamarin.Forms.ColumnDefinition { Width = new Xamarin.Forms.GridLength(50, Xamarin.Forms.GridUnitType.Absolute) });
+            this.RowDefinitions.Add(new Xamarin.Forms.RowDefinition { Height = new Xamarin.Forms.GridLength(25, Xamarin.Forms.GridUnitType.Absolute) });
+            this.RowDefinitions.Add(new Xamarin.Forms.RowDefinition { Height = new Xamarin.Forms.GridLength(5, Xamarin.Forms.GridUnitType.Absolute) });
             {
                 LBname = new MyLabel("");
                 LBname.SetBinding(MyLabel.TextProperty,new Xamarin.Forms.Binding("LBname"));
@@ -94,16 +96,16 @@ namespace GoogleDrive.MyControls
                 BTNmessage.SetBinding(MyButton.TextProperty, new Xamarin.Forms.Binding("BTNmessage"));
                 BTNmessage.SetBinding(MyButton.IsEnabledProperty, new Xamarin.Forms.Binding("BTNmessageEnabled"));
                 BTNmessage.SetBinding(MyButton.CommandProperty, new Xamarin.Forms.Binding("BTNmessageClicked"));
-                MyGrid.SetRowSpan(BTNmessage, 2);
                 this.Children.Add(BTNmessage, 4, 0);
+                MyGrid.SetRowSpan(BTNmessage, 2);
             }
             {
                 BTNcontrol = new MyButton("");
                 BTNcontrol.SetBinding(MyButton.TextProperty, new Xamarin.Forms.Binding("BTNcontrol"));
                 BTNcontrol.SetBinding(MyButton.IsEnabledProperty, new Xamarin.Forms.Binding("BTNcontrolEnabled"));
                 BTNcontrol.SetBinding(MyButton.CommandProperty, new Xamarin.Forms.Binding("BTNcontrolClicked"));
-                MyGrid.SetRowSpan(BTNcontrol, 2);
                 this.Children.Add(BTNcontrol, 5, 0);
+                MyGrid.SetRowSpan(BTNcontrol, 2);
             }
         }
     }
@@ -270,6 +272,10 @@ namespace GoogleDrive.MyControls
                             await networker.StartAsync();
                         }
                         break;
+                    case CloudFile.Networker.NetworkStatus.Completed:
+                        {
+                            await MyLogger.Alert("The task is already completed, no action to take");
+                        }break;
                     default: throw new Exception($"networker.Status: {networker.Status}");
                 }
             });
@@ -321,7 +327,7 @@ namespace GoogleDrive.MyControls
                     {
                         BTNcontrolEnabled = false;
                         BTNcontrol = "\u2714";
-                        await System.Threading.Tasks.Task.Delay(5000);
+                        await System.Threading.Tasks.Task.Delay(1000);
                         await OnDisposed();
                     }
                     break;

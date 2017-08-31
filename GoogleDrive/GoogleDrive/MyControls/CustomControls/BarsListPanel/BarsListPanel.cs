@@ -81,10 +81,11 @@ namespace GoogleDrive.MyControls.BarsListPanel
         }
         Stack<GenericView> AvaiableChildrenPool=new Stack<GenericView>();
         Dictionary<DataType, GenericView> ChildrenInUse = new Dictionary<DataType, GenericView>();
-        public Func<double, Tuple<Rectangle, AbsoluteLayoutFlags>> BarsLayoutMethod = new Func<double, Tuple<Rectangle, AbsoluteLayoutFlags>>((y) =>
-            {
-                return new Tuple<Rectangle, AbsoluteLayoutFlags>(new Rectangle(0, y, 1, -1), AbsoluteLayoutFlags.WidthProportional);
-            });
+        public Func<double, Tuple<Rectangle, AbsoluteLayoutFlags>> BarsLayoutMethod = null;
+            //new Func<double, Tuple<Rectangle, AbsoluteLayoutFlags>>((y) =>
+            //{
+            //    return new Tuple<Rectangle, AbsoluteLayoutFlags>(new Rectangle(0, y, 1, -1), AbsoluteLayoutFlags.WidthProportional);
+            //});
         GenericView GetGenericView()
         {
             if (AvaiableChildrenPool.Count == 0)
@@ -130,33 +131,45 @@ namespace GoogleDrive.MyControls.BarsListPanel
             HashSet<DataType> remain = new HashSet<DataType>();
             foreach (var p in ChildrenInUse) remain.Add(p.Key);
             bool answer = false;
+            SVmain.BatchBegin();
             treap.Query(treap.Count, new Action<Treap<DataType>.TreapNode>((o) =>
             {
                 MyAbsoluteLayout.SetLayoutBounds(LBend, BarsLayoutMethod(o.QueryYOffset()).Item1);
                 ALmain.HeightRequest = o.QueryYOffset() + treap.itemHeight;
             }));
-            ALmain.BatchBegin();
             if (treap.Count > 0)
             {
+                double difference = 0;
                 int l = UponIndex(), r = DownIndex();
                 for (int i = l; i <= r; i++)
                 {
                     treap.Query(i, new Action<Treap<DataType>.TreapNode>((o) =>
                     {
+                        var targetBound = BarsLayoutMethod(o.QueryYOffset());
+                        GenericView view = null;
                         if (ChildrenInUse.ContainsKey(o.data))
                         {
-                            MyAbsoluteLayout.SetLayoutBounds(ChildrenInUse[o.data], BarsLayoutMethod(o.QueryYOffset()).Item1);
+                            view = ChildrenInUse[o.data];
                             remain.Remove(o.data);
+                            if (i == (l + r) / 2 && view.Bounds != null) difference = targetBound.Item1.Y - view.Bounds.Y;
                         }
                         else if (!answer)
                         {
                             answer = true;
-                            var c = GetGenericView();
-                            MyAbsoluteLayout.SetLayoutBounds(c,BarsLayoutMethod(o.QueryYOffset()).Item1);
-                            c.Reset(o.data);
-                            ChildrenInUse[o.data] = c;
+                            view = GetGenericView();
+                            view.Reset(o.data);
+                            ChildrenInUse[o.data] = view;
+                        }
+                        if (view != null)
+                        {
+                            MyAbsoluteLayout.SetLayoutBounds(view, targetBound.Item1);
                         }
                     }));
+                }
+                if (difference != 0)
+                {
+                    SVmain.MyScrollY += difference;
+                    //SVmain.ScrollToAsync(SVmain.ScrollX, SVmain.ScrollY + difference /** 1.05*/, false);
                 }
             }
             foreach (var d in remain)
@@ -167,7 +180,7 @@ namespace GoogleDrive.MyControls.BarsListPanel
                 v.IsVisible = false;
                 AvaiableChildrenPool.Push(v);
             }
-            ALmain.BatchCommit();
+            SVmain.BatchCommit();
             return answer;
         }
         private void AnimateLayout()
@@ -178,7 +191,6 @@ namespace GoogleDrive.MyControls.BarsListPanel
                 return;
             }
             isLayoutRunning = true;
-            //ALmain.AbortAnimation("animation");
             //MyLogger.Log($"treap.Count: {treap.Count}");
             bool adding = UpdateLayout();
             ALmain.Animate("animation", new Animation(new Action<double>((ratio) =>
@@ -228,6 +240,10 @@ namespace GoogleDrive.MyControls.BarsListPanel
         }
         public BarsListPanel()
         {
+            BarsLayoutMethod = new Func<double, Tuple<Rectangle, AbsoluteLayoutFlags>>((y) =>
+           {
+               return new Tuple<Rectangle, AbsoluteLayoutFlags>(new Rectangle(0, y, ALmain.Width, -1), AbsoluteLayoutFlags.None);
+           });
             InitializeViews();
             RegisterEvents();
             OnTreapLayoutChanged();

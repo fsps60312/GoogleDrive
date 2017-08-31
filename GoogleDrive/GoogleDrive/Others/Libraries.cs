@@ -56,12 +56,16 @@ namespace GoogleDrive
             //stream.Dispose();
             //return hashText;
         }
+        class temporaryClassForGetSha256ForCloudFileById
+        {
+            public string md5Checksum;
+        }
         public static async Task<string> GetSha256ForCloudFileById(string id)
         {
             var data = await (new RestRequests.FileGetter(id)).GetFileAsync();
             data = data.Substring(data.IndexOf("{"));
             //MyLogger.Log(data);
-            var obj = Newtonsoft.Json.JsonConvert.DeserializeObject<dynamic>(data);
+            var obj = Newtonsoft.Json.JsonConvert.DeserializeObject<temporaryClassForGetSha256ForCloudFileById>(data);
             //await MyLogger.Alert("hi");
             return obj.md5Checksum;
         }
