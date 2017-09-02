@@ -39,7 +39,7 @@ namespace GoogleDrive
             //        //MyLogger.Log($"NetworkingCount: {value}");
             //    }
             //}
-            protected const int NetworkingMaxCount = 10;
+            protected const int NetworkingMaxCount = 15;
             private volatile static SemaphoreSlim SemaphoreSlim = new SemaphoreSlim(NetworkingMaxCount, NetworkingMaxCount);
             protected static async Task WaitSemaphoreSlimAsync()
             {
