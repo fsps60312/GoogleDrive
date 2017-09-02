@@ -32,25 +32,25 @@ namespace GoogleDrive
             public event MessageAppendedEventHandler MessageAppended;
             bool pauseRequest = false;
             private volatile SemaphoreSlim semaphoreSlim = new SemaphoreSlim(0, 1);
-            private async Task<UploadStatus> VerifyCheckSum()
-            {
-                MessageAppended?.Invoke("Calculating checksum...");
-                string cloudCheckSum = await Libraries.GetSha256ForCloudFileById(CloudFileId);
-                MessageAppended?.Invoke($"Cloud: {cloudCheckSum}");
-                fileStream.Position = 0;
-                string localCheckSum = await Libraries.GetSha256ForWindowsStorageFile(fileStream);
-                MessageAppended?.Invoke($"Local: {localCheckSum}");
-                if (cloudCheckSum != null && cloudCheckSum == localCheckSum)
-                {
-                    MessageAppended?.Invoke("Checksum matched!");
-                    return UploadStatus.Completed;
-                }
-                else
-                {
-                    MessageAppended?.Invoke("Failed: Checksum not matched");
-                    return UploadStatus.ErrorNeedRestart;
-                }
-            }
+            //private async Task<UploadStatus> VerifyCheckSum()
+            //{
+            //    MessageAppended?.Invoke("Calculating checksum...");
+            //    string cloudCheckSum = await Libraries.GetSha256ForCloudFileById(CloudFileId);
+            //    MessageAppended?.Invoke($"Cloud: {cloudCheckSum}");
+            //    fileStream.Position = 0;
+            //    string localCheckSum = await Libraries.GetSha256ForWindowsStorageFile(fileStream);
+            //    MessageAppended?.Invoke($"Local: {localCheckSum}");
+            //    if (cloudCheckSum != null && cloudCheckSum == localCheckSum)
+            //    {
+            //        MessageAppended?.Invoke("Checksum matched!");
+            //        return UploadStatus.Completed;
+            //    }
+            //    else
+            //    {
+            //        MessageAppended?.Invoke("Failed: Checksum not matched");
+            //        return UploadStatus.ErrorNeedRestart;
+            //    }
+            //}
             private async Task StartUploadAsync(long position)
             {
                 if (pauseRequest)
@@ -113,7 +113,7 @@ namespace GoogleDrive
                     CloudFile.Networker.OnTotalAmountRemainChanged(-bytesLeftStatistics);
                 }
             }
-            private async Task CreateResumableUploadAsync(IList<string> parents)
+            private async Task CreateResumableUploadAsync()
             {
                 Status = UploadStatus.Creating;
                 string json = $"{{\"name\":\"{fileName}\"";
@@ -221,7 +221,7 @@ namespace GoogleDrive
                             CloudFileId = (string)jsonObject["id"];
                         }
                         byteReceivedSoFar = fileStream.Length;
-                        Status=await VerifyCheckSum();
+                        Status = UploadStatus.Completed;
                         return;
                     }
                     else
@@ -231,6 +231,100 @@ namespace GoogleDrive
                         Status = UploadStatus.ErrorNeedResume;
                         return;
                     }
+                }
+            }
+            private string GetSeperateString(byte[]data)
+            {
+                return Libraries.GetNonsubstring_A_Z(data);
+            }
+            private Tuple<string,byte[]>MergeMetadataAndFileContent(byte[] metadata,byte[]fileContent)
+            {
+                var bytes = new byte[metadata.Length + fileContent.Length];
+                Array.Copy(metadata, bytes, metadata.Length);
+                Array.Copy(fileContent, 0, bytes, metadata.Length, fileContent.Length);
+                var seperateString = GetSeperateString(bytes);
+                var ans = new List<byte>();
+                ans.AddRange(Encoding.UTF8.GetBytes($"--{seperateString}\n"));
+                {
+                    ans.AddRange(metadata);
+                }
+                ans.AddRange(Encoding.UTF8.GetBytes($"\n--{seperateString}\n"));
+                {
+                    ans.AddRange(Encoding.UTF8.GetBytes(/*"Content-Type: text/plain\n"+*/"\n"));
+                    ans.AddRange(fileContent);
+                }
+                ans.AddRange(Encoding.UTF8.GetBytes($"\n--{seperateString}--"));
+                return new Tuple<string, byte[]>(seperateString, ans.ToArray());
+            }
+            private async Task DoMultipartUploadAsync()
+            {
+                Status = UploadStatus.Uploading;
+                OnProgressChanged(0, fileStream.Length);
+                CloudFile.Networker.OnTotalAmountRemainChanged(fileStream.Length);
+                try
+                {
+                    var body = MergeMetadataAndFileContent(new Func<byte[]>(() =>
+                    {
+                        string json = $"Content-Type: application/json; charset=UTF-8\n\n{{\"name\":\"{fileName}\"";
+                        if (parents.Count > 0)
+                        {
+                            json += ",\"parents\":[";
+                            foreach (string parent in parents) json += $"\"{parent}\",";
+                            json = json.Remove(json.Length - 1) + "]";
+                        }
+                        json += "}";
+                        MessageAppended?.Invoke(json);
+                        return Encoding.UTF8.GetBytes(json);
+                    })(), await new Func<Task<byte[]>>(async () =>
+                     {
+                         byte[] buffer = new byte[fileStream.Length];
+                         for (int i = 0; i < buffer.Length;)
+                         {
+                             i += await fileStream.ReadAsync(buffer, i, buffer.Length - i);
+                         }
+                         return buffer;
+                     })());
+                    //MessageAppended?.Invoke($"Request to send:\r\n{Encoding.UTF8.GetString(body.Item2)}");
+                    //long totalBytes = fileStream.Length;
+                    HttpWebRequest request = WebRequest.CreateHttp("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart");
+                    request.Headers["Content-Type"] = "multipart/related; charset=UTF-8; boundary=" + body.Item1;
+                    request.Headers["Content-Length"] = body.Item2.Length.ToString(); // Convert.FromBase64String(json).Length.ToString();
+                                                                                      //request.Headers["X-Upload-Content-Type"]= Constants.GetMimeType(System.IO.Path.GetExtension(filePath));
+                                                                                      //request.Headers["X-Upload-Content-Length"] = totalBytes.ToString();
+                    request.Headers["Authorization"] = "Bearer " + (await Drive.GetAccessTokenAsync());
+                    request.Method = "POST";
+                    using (System.IO.Stream requestStream = await request.GetRequestStreamAsync())
+                    {
+                        await requestStream.WriteAsync(body.Item2, 0, body.Item2.Length);
+                    }
+                    using (var response = await GetHttpResponseAsync(request))
+                    {
+                        if (response == null)
+                        {
+                            MessageAppended?.Invoke("Null response");
+                            Status = UploadStatus.ErrorNeedRestart;
+                            return;
+                        }
+                        MessageAppended?.Invoke($"Http response: {response.StatusCode} ({(int)response.StatusCode})");
+                        if (response.StatusCode == HttpStatusCode.OK)
+                        {
+                            OnProgressChanged(fileStream.Length, fileStream.Length);
+                            OnChunkSent(fileStream.Length);
+                            Status = UploadStatus.Completed;
+                            return;
+                        }
+                        else
+                        {
+                            MessageAppended?.Invoke("Http response isn't OK!");
+                            MessageAppended?.Invoke(await LogHttpWebResponse(response, true));
+                            Status = UploadStatus.ErrorNeedRestart;
+                            return;
+                        }
+                    }
+                }
+                finally
+                {
+                    CloudFile.Networker.OnTotalAmountRemainChanged(-fileStream.Length);
                 }
             }
             #endregion
@@ -273,7 +367,7 @@ namespace GoogleDrive
                                             CloudFileId = (string)jsonObject["id"];
                                         }
                                         response.Dispose();
-                                        Status=await VerifyCheckSum();
+                                        Status = UploadStatus.Completed;
                                         return;
                                     }
                                     else if ((int)response.StatusCode == 308)
@@ -317,11 +411,19 @@ namespace GoogleDrive
                             }
                         case UploadStatus.NotStarted:
                             {
-                                await CreateResumableUploadAsync(parents);
-                                if (Status != UploadStatus.Created) return;
-                                MyLogger.Assert(resumableUri.StartsWith("\"") && resumableUri.EndsWith("\""));
-                                resumableUri = resumableUri.Substring(1, resumableUri.Length - 2);
-                                await StartUploadAsync(0);
+                                if (fileStream.Length < MinChunkSize)
+                                {
+                                    MessageAppended?.Invoke($"File too small ({fileStream.Length}), using multipart upload instead");
+                                    await DoMultipartUploadAsync();
+                                }
+                                else
+                                {
+                                    await CreateResumableUploadAsync();
+                                    if (Status != UploadStatus.Created) return;
+                                    MyLogger.Assert(resumableUri.StartsWith("\"") && resumableUri.EndsWith("\""));
+                                    resumableUri = resumableUri.Substring(1, resumableUri.Length - 2);
+                                    await StartUploadAsync(0);
+                                }
                                 return;
                             }
                         case UploadStatus.Completed:

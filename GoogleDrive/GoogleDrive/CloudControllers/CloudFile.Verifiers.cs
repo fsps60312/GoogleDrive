@@ -14,6 +14,10 @@ namespace GoogleDrive
             public class FileVerifier : Networker
             {
                 public static event NewTaskCreatedEventHandler NewFileVerifierCreated;
+                public override string ToString()
+                {
+                    return $"[U]{cloudFile.Name}  \t↑: {cloudFile.FullName}";
+                }
                 Func<Task> startAction = null;
                 protected override async Task StartPrivateAsync()
                 {
@@ -67,9 +71,13 @@ namespace GoogleDrive
             }
             public class FolderVerifier : Networker
             {
+                public override string ToString()
+                {
+                    return $"[U]{cloudFolder.Name}  \t↑: {cloudFolder.FullName}";
+                }
                 public static event NewTaskCreatedEventHandler NewFolderVerifierCreated;
                 public delegate void TotalProgressChangedEventHandler(long difference);
-                public event TotalProgressChangedEventHandler TotalProgressChanged,CurrentProgressChanged;
+                public event TotalProgressChangedEventHandler TotalProgressChanged, CurrentProgressChanged;
                 protected override async Task StartPrivateAsync()
                 {
                     Status = await VerifyFolder();
@@ -86,36 +94,91 @@ namespace GoogleDrive
                 }
                 CloudFile cloudFolder;
                 Windows.Storage.StorageFolder windowsFolder;
+                Dictionary<string, CloudFile> cloudSubFolders = null, cloudSubFiles = null;
+                //Dictionary<string, Windows.Storage.StorageFolder> localSubFolders = null, localSubFiles = null;
+                private async Task<bool> GetCloudSubFolders()
+                {
+                    if (cloudSubFolders != null) return true;
+                    cloudSubFolders = new Dictionary<string, CloudFile>();
+                    var cloudFoldersGetter = cloudFolder.FoldersGetter();
+                    cloudFoldersGetter.MessageAppended += (msg) => { OnMessageAppended($"[cloudFoldersGetter]{msg}"); };
+                    var list = await cloudFoldersGetter.GetNextPageAsync();
+                    if (cloudFoldersGetter.Status == NetworkStatus.ErrorNeedRestart)
+                    {
+                        OnMessageAppended($"Failed to get next page");
+                        cloudSubFolders = null;
+                        return false;
+                    }
+                    while (list != null)
+                    {
+                        foreach (var f in list)
+                        {
+                            if (cloudSubFolders.ContainsKey(f.Name))
+                            {
+                                OnMessageAppended($"Cloud Folder Name duplicated: {f.Name}");
+                                cloudSubFolders = null;
+                                return false;
+                            }
+                            cloudSubFolders.Add(f.Name, f);
+                        }
+                        list = await cloudFoldersGetter.GetNextPageAsync();
+                        if (cloudFoldersGetter.Status == NetworkStatus.ErrorNeedRestart)
+                        {
+                            OnMessageAppended($"Failed to get next page");
+                            cloudSubFolders = null;
+                            return false;
+                        }
+                    }
+                    return true;
+                }
+                private async Task<bool> GetCloudSubFiles()
+                {
+                    if (cloudSubFiles != null) return true;
+                    cloudSubFiles = new Dictionary<string, CloudFile>();
+                    var cloudFilesGetter = cloudFolder.FilesGetter();
+                    cloudFilesGetter.MessageAppended += (msg) => { OnMessageAppended($"[cloudFilesGetter]{msg}"); };
+                    var list = await cloudFilesGetter.GetNextPageAsync();
+                    if (cloudFilesGetter.Status == NetworkStatus.ErrorNeedRestart)
+                    {
+                        OnMessageAppended($"Failed to get next page");
+                        cloudSubFiles = null;
+                        return false;
+                    }
+                    while (list != null)
+                    {
+                        foreach (var f in list)
+                        {
+                            if (cloudSubFiles.ContainsKey(f.Name))
+                            {
+                                OnMessageAppended($"Cloud File Name duplicated: {f.Name}");
+                                cloudSubFiles = null;
+                                return false;
+                            }
+                            cloudSubFiles.Add(f.Name, f);
+                        }
+                        list = await cloudFilesGetter.GetNextPageAsync();
+                        if (cloudFilesGetter.Status == NetworkStatus.ErrorNeedRestart)
+                        {
+                            OnMessageAppended($"Failed to get next page");
+                            cloudSubFiles = null;
+                            return false;
+                        }
+                    }
+                    return true;
+                }
                 private async Task<NetworkStatus> VerifyFolder()
                 {
                     Status = NetworkStatus.Networking;
-                    long currentProgress=0, totalProgress = 1;
+                    long currentProgress = 0, totalProgress = 1;
                     OnProgressChanged(currentProgress, totalProgress);
                     if (cloudFolder.Name != windowsFolder.Name)
                     {
                         OnMessageAppended($"Name not consistent, Cloud: {cloudFolder.Name}, Local: {windowsFolder.Name}");
                         return NetworkStatus.ErrorNeedRestart;
                     }
-                    var folderVerifiers = new List<Verifiers.FolderVerifier>();
+                    var folderVerifiers = new List<Tuple<CloudFile, Windows.Storage.StorageFolder>>();
                     {
-                        Dictionary<string, CloudFile> cloudSubFolders = new Dictionary<string, CloudFile>();
-                        {
-                            var cloudFoldersGetter = cloudFolder.FoldersGetter();
-                            var list = await cloudFoldersGetter.GetNextPageAsync();
-                            while (list != null)
-                            {
-                                foreach (var f in list)
-                                {
-                                    if (cloudSubFolders.ContainsKey(f.Name))
-                                    {
-                                        OnMessageAppended($"Cloud Folder Name duplicated: {f.Name}");
-                                        return NetworkStatus.ErrorNeedRestart;
-                                    }
-                                    cloudSubFolders.Add(f.Name, f);
-                                }
-                                list = await cloudFoldersGetter.GetNextPageAsync();
-                            }
-                        }
+                        if (!await GetCloudSubFolders()) return NetworkStatus.ErrorNeedRestart;
                         Dictionary<string, Windows.Storage.StorageFolder> localSubFolders = new Dictionary<string, Windows.Storage.StorageFolder>();
                         foreach (var f in await windowsFolder.GetFoldersAsync())
                         {
@@ -133,33 +196,16 @@ namespace GoogleDrive
                                 OnMessageAppended($"Local Folder doesn't exist: {p.Key}");
                                 return NetworkStatus.ErrorNeedRestart;
                             }
-                            folderVerifiers.Add(new FolderVerifier(p.Value, localSubFolders[p.Key]));
+                            folderVerifiers.Add(new Tuple<CloudFile, Windows.Storage.StorageFolder>(p.Value, localSubFolders[p.Key]));
                             localSubFolders.Remove(p.Key);
                         }
                         MyLogger.Assert(localSubFolders.Count == 0);
                     }
                     OnProgressChanged(currentProgress, totalProgress += folderVerifiers.Count);
                     TotalProgressChanged?.Invoke(folderVerifiers.Count);
-                    var fileVerifiers = new List<Verifiers.FileVerifier>();
+                    var fileVerifiers = new List<Tuple<CloudFile, Windows.Storage.StorageFile>>();
                     {
-                        Dictionary<string, CloudFile> cloudSubFiles = new Dictionary<string, CloudFile>();
-                        {
-                            var cloudFilesGetter = cloudFolder.FilesGetter();
-                            var list = await cloudFilesGetter.GetNextPageAsync();
-                            while (list != null)
-                            {
-                                foreach (var f in list)
-                                {
-                                    if (cloudSubFiles.ContainsKey(f.Name))
-                                    {
-                                        OnMessageAppended($"Cloud File Name duplicated: {f.Name}");
-                                        return NetworkStatus.ErrorNeedRestart;
-                                    }
-                                    cloudSubFiles.Add(f.Name, f);
-                                }
-                                list = await cloudFilesGetter.GetNextPageAsync();
-                            }
-                        }
+                        if (!await GetCloudSubFiles()) return NetworkStatus.ErrorNeedRestart;
                         Dictionary<string, Windows.Storage.StorageFile> localSubFiles = new Dictionary<string, Windows.Storage.StorageFile>();
                         foreach (var f in await windowsFolder.GetFilesAsync())
                         {
@@ -177,7 +223,7 @@ namespace GoogleDrive
                                 OnMessageAppended($"Local File doesn't exist: {p.Key}");
                                 return NetworkStatus.ErrorNeedRestart;
                             }
-                            fileVerifiers.Add(new FileVerifier(p.Value, localSubFiles[p.Key]));
+                            fileVerifiers.Add(new Tuple<CloudFile, Windows.Storage.StorageFile>(p.Value, localSubFiles[p.Key]));
                             localSubFiles.Remove(p.Key);
                         }
                         MyLogger.Assert(localSubFiles.Count == 0);
@@ -185,27 +231,41 @@ namespace GoogleDrive
                     OnProgressChanged(++currentProgress, totalProgress += fileVerifiers.Count);
                     TotalProgressChanged?.Invoke(fileVerifiers.Count);
                     CurrentProgressChanged?.Invoke(1);
-                    await Task.WhenAll(fileVerifiers.Select(async (verifier) =>
+                    ReleaseSemaphoreSlim();
+                    try
                     {
-                        await verifier.StartUntilCompletedAsync();
-                        OnProgressChanged(++currentProgress, totalProgress);
-                    }));
-                    await Task.WhenAll(folderVerifiers.Select(async (verifier) =>
-                    {
-                        verifier.TotalProgressChanged += (difference) =>
+                        await Task.WhenAll(fileVerifiers.Select(async (tuple) =>
                         {
-                            OnProgressChanged(currentProgress, totalProgress += difference);
-                            TotalProgressChanged?.Invoke(difference);
-                        };
-                        verifier.CurrentProgressChanged += (difference) =>
-                          {
-                              MyLogger.Assert(difference == 1);
-                              OnProgressChanged(currentProgress+=difference, totalProgress);
-                              CurrentProgressChanged?.Invoke(difference);
-                          };
-                        await verifier.StartUntilCompletedAsync();
-                    }));
-                    return NetworkStatus.Completed;
+                            await new Verifiers.FileVerifier(tuple.Item1, tuple.Item2).StartUntilCompletedAsync();
+                            CurrentProgressChanged?.Invoke(1);
+                            OnProgressChanged(++currentProgress, totalProgress);
+                        }));
+                        await Task.WhenAll(folderVerifiers.Select(async (tuple) =>
+                        {
+                            var totalProgressChangedEventHandler = new TotalProgressChangedEventHandler((difference) =>
+                              {
+                                  OnProgressChanged(currentProgress, totalProgress += difference);
+                                  TotalProgressChanged?.Invoke(difference);
+                              });
+                            var currentProgressChangedEventHandler = new TotalProgressChangedEventHandler((difference) =>
+                              {
+                                  MyLogger.Assert(difference == 1);
+                                  OnProgressChanged(currentProgress += difference, totalProgress);
+                                  CurrentProgressChanged?.Invoke(difference);
+                              });
+                            var verifier = new Verifiers.FolderVerifier(tuple.Item1, tuple.Item2);
+                            verifier.TotalProgressChanged += totalProgressChangedEventHandler;
+                            verifier.CurrentProgressChanged += currentProgressChangedEventHandler;
+                            await verifier.StartUntilCompletedAsync();
+                            verifier.TotalProgressChanged -= totalProgressChangedEventHandler;
+                            verifier.CurrentProgressChanged -= currentProgressChangedEventHandler;
+                        }));
+                        return NetworkStatus.Completed;
+                    }
+                    finally
+                    {
+                        await WaitSemaphoreSlimAsync();
+                    }
                 }
                 public FolderVerifier(CloudFile _cloudFolder, Windows.Storage.StorageFolder _windowsFolder)
                 {

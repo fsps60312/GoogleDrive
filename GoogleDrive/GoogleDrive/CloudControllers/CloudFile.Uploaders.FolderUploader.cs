@@ -15,6 +15,8 @@ namespace GoogleDrive
                 {
                     return $"[FU]{windowsFolder.Name}  \t↑: {cloudFolder.Name}";
                 }
+                public delegate void TotalProgressChangedEventHandler(long difference);
+                public event TotalProgressChangedEventHandler TotalProgressChanged, CurrentProgressChanged;
                 public static event NewTaskCreatedEventHandler NewFolderUploadCreated;
                 CloudFile cloudFolder;
                 Windows.Storage.StorageFolder windowsFolder;
@@ -66,41 +68,62 @@ namespace GoogleDrive
                                     {
                                         foreach (var f in windowsFiles)
                                         {
-                                            subTasks.Add(new FolderUploader(UploadedCloudFolder, f));
+                                            var folderUploader = new FolderUploader(UploadedCloudFolder, f);
+                                            subTasks.Add(folderUploader);
                                         }
                                     }
-                                    OnProgressChanged(0, subTasks.Count);
-                                    int progress = 0;
+                                    long currentProgress = 0, totalProgress = subTasks.Count;
+                                    OnProgressChanged(currentProgress, totalProgress);
+                                    TotalProgressChanged?.Invoke(subTasks.Count);
+                                    Func<Networker, Task> action;
                                     if (Status == NetworkStatus.Paused)
                                     {
-                                        IEnumerable<Task> tasks;
-                                        lock (subTasks)
+                                        action = new Func<Networker, Task>(async (st) =>
                                         {
-                                            tasks = subTasks.ToList().Select(async (st) =>
-                                             {
-                                                 await st.WaitUntilCompletedAsync();
-                                                 OnProgressChanged(++progress, subTasks.Count);
-                                             });
-                                        }
-                                        await Task.WhenAll(tasks);
+                                            await st.WaitUntilCompletedAsync();
+                                        });
                                     }
                                     else
                                     {
-                                        IEnumerable<Task> tasks;
-                                        lock (subTasks)
+                                        action = new Func<Networker, Task>(async (st) =>
                                         {
-                                            tasks = subTasks.ToList().Select(async (st) =>
-                                            {
-                                                await st.StartUntilCompletedAsync();
-                                                OnProgressChanged(++progress, subTasks.Count);
-                                            });
-                                        }
-                                        //foreach (var st in subTasks)
-                                        //{
-                                        //    await st.StartAsync();
-                                        //}
-                                        await Task.WhenAll(tasks);
+                                            await st.StartUntilCompletedAsync();
+                                        });
                                     }
+                                    IEnumerable<Task> tasks;
+                                    lock (subTasks)
+                                    {
+                                        var currentProgressChangedEventHandler = new TotalProgressChangedEventHandler((dif) =>
+                                        {
+                                            MyLogger.Assert(dif == 1);
+                                            CurrentProgressChanged?.Invoke(dif);
+                                            OnProgressChanged(currentProgress += dif, totalProgress);
+                                        });
+                                        var totalProgressChangedEventHandler = new TotalProgressChangedEventHandler((dif) =>
+                                        {
+                                            TotalProgressChanged?.Invoke(dif);
+                                            OnProgressChanged(currentProgress, totalProgress += dif);
+                                        });
+                                        tasks = subTasks.ToList().Select(async (st) =>
+                                        {
+                                            if (st.GetType() == typeof(CloudFile.Uploaders.FolderUploader))
+                                            {
+                                                var fu = st as CloudFile.Uploaders.FolderUploader;
+                                                fu.CurrentProgressChanged += currentProgressChangedEventHandler;
+                                                fu.TotalProgressChanged += totalProgressChangedEventHandler;
+                                            }
+                                            await action(st);
+                                            if (st.GetType() == typeof(CloudFile.Uploaders.FolderUploader))
+                                            {
+                                                var fu = st as CloudFile.Uploaders.FolderUploader;
+                                                fu.CurrentProgressChanged -= currentProgressChangedEventHandler;
+                                                fu.TotalProgressChanged -= totalProgressChangedEventHandler;
+                                            }
+                                            CurrentProgressChanged?.Invoke(1);
+                                            OnProgressChanged(++currentProgress, totalProgress);
+                                        });
+                                    }
+                                    await Task.WhenAll(tasks);
                                     //NetworkingCount++;
                                     Status = NetworkStatus.Completed;
                                     return;

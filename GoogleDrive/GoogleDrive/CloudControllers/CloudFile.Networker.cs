@@ -39,7 +39,7 @@ namespace GoogleDrive
             //        //MyLogger.Log($"NetworkingCount: {value}");
             //    }
             //}
-            protected const int NetworkingMaxCount = 20;
+            protected const int NetworkingMaxCount = 10;
             private volatile static SemaphoreSlim SemaphoreSlim = new SemaphoreSlim(NetworkingMaxCount, NetworkingMaxCount);
             protected static async Task WaitSemaphoreSlimAsync()
             {
@@ -132,8 +132,8 @@ namespace GoogleDrive
                       }
                   });
                 StatusChanged += statusChangedEventHandler;
-                await StartAsync();
                 index_Retry:;
+                await StartAsync();
                 await semaphoreSlim.WaitAsync();
                 if (Status != NetworkStatus.Completed)
                 {
@@ -158,7 +158,9 @@ namespace GoogleDrive
                 }
                 catch (Exception error)
                 {
-                    throw error;
+                    OnMessageAppended($"[Unexpected]{error}");
+                    Status = NetworkStatus.ErrorNeedRestart;
+                    return;
                 }
                 finally
                 {

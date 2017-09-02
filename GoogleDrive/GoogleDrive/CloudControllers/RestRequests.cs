@@ -10,7 +10,7 @@ namespace GoogleDrive
     partial class RestRequests
     {
         public delegate void ChunkSentEventHandler(long chunkSize);
-        const int MinChunkSize = 262144 * 2;
+        const int MinChunkSize = 262144/* * 2*/;
         private static async Task<string> LogHttpWebResponse(HttpWebResponse response, bool readStream)
         {
             string ans = $"Http response: {response.StatusCode} ({(int)response.StatusCode})\r\n";
@@ -92,99 +92,96 @@ namespace GoogleDrive
             }
         }
         public delegate void ProgressChangedEventHandler(long bytesProcessed, long totalLength);
-        public class FileCreator
+        public class SearchListGetter
         {
-            public enum FileCreatorStatus {NotStarted, Creating,Completed, ErrorNeedRestart };
-            public FileCreatorStatus Status { get; private set; } = FileCreatorStatus.NotStarted;
             public event MessageAppendedEventHandler MessageAppended;
-            string cloudId, name;
-            bool isFolder;
-            public string Result { get; private set; }
-            public FileCreator(string _cloudId,string _name,bool _isFolder)
+            public delegate void NewFileListGotEventHandler(List<Tuple<string, string, string>> fileList);
+            public event NewFileListGotEventHandler NewFileListGot;
+            public enum SearchStatus {NotStarted,Searching,Paused,Completed,ErrorNeedResume,ErrorNeedRestart }
+            public SearchStatus Status = SearchStatus.NotStarted;
+            string searchPattern, pageToken = null;
+            int pageSize = 100;
+            public int PageSize
             {
-                cloudId = _cloudId;
-                name = _name;
-                isFolder = _isFolder;
-                //MessageAppended += (log) => { MyLogger.Log(log); };
+                get { return pageSize; }
+                set { pageSize = value; }
             }
-            public async Task Start()
+            public List<Tuple<string, string, string>> FileListGot // id, name, mimeType
             {
-                int timeToWait = 500;
-                while(true)
-                {
-                    await StartPrivate();
-                    switch (Status)
-                    {
-                        case FileCreatorStatus.ErrorNeedRestart:
-                            {
-                                if (timeToWait >Constants.MaxTimeToWait) return;
-                                MessageAppended?.Invoke($"Waiting for {timeToWait} and try again...");
-                                timeToWait *= 2;
-                            }break;
-                        case FileCreatorStatus.Completed:
-                            {
-                                return;
-                            }
-                        default:
-                            {
-                                throw new Exception($"Status: {Status}");
-                            }
-                    }
-                }
+                get;
+                private set;
+            } = new List<Tuple<string, string, string>>();
+            public SearchListGetter(string _searchPattern)
+            {
+                searchPattern = _searchPattern;
             }
-            private async Task StartPrivate()
+            class temporaryClassForResponseBody
             {
-                Status = FileCreatorStatus.Creating;
-                MessageAppended?.Invoke("Creating Folder...");
-                string json = $"{{\"name\":\"{name}\",\"parents\":[\"{cloudId}\"]";
-                if(isFolder)
+                public string nextPageToken;
+                public bool incompleteSearch;
+                public class temporaryClassForResponseBodyFilesList
                 {
-                    json += ",\"mimeType\": \"application/vnd.google-apps.folder\"";
+                    public string id, name, mimeType;
                 }
-                json += "}";
-                MessageAppended?.Invoke(json);
-                HttpWebRequest request = WebRequest.CreateHttp("https://www.googleapis.com/drive/v3/files");
-                var bytes = Encoding.UTF8.GetBytes(json);
-                request.Headers["Content-Type"] = "application /json; charset=UTF-8";
-                request.Headers["Content-Length"] = bytes.Length.ToString();
+                public temporaryClassForResponseBodyFilesList[] files;
+            }
+            public async Task GetNextPageAsync()
+            {
+                string url = "https://www.googleapis.com/drive/v3/files?corpora=user";
+                url += $"&pageSize={pageSize}";
+                if (pageToken != null) url+=$"&pageToken={pageToken}";
+                url += $"&q={System.Net.WebUtility.UrlEncode(searchPattern)}";
+                HttpWebRequest request = WebRequest.CreateHttp(url);
+                //MessageAppended?.Invoke($"url: {url}");
                 request.Headers["Authorization"] = "Bearer " + (await Drive.GetAccessTokenAsync());
-                request.Method = "POST";
-                using (System.IO.Stream requestStream = await request.GetRequestStreamAsync())
-                {
-                    await requestStream.WriteAsync(bytes, 0, bytes.Length);
-                }
+                request.Method = "GET";
                 using (var response = await GetHttpResponseAsync(request))
                 {
                     if (response == null)
                     {
                         MessageAppended?.Invoke("Null response");
-                        Status = FileCreatorStatus.ErrorNeedRestart;
+                        Status = SearchStatus.ErrorNeedResume;
                         return;
                     }
                     MessageAppended?.Invoke($"Http response: {response.StatusCode} ({(int)response.StatusCode})");
                     if (response.StatusCode == HttpStatusCode.OK)
                     {
-                        using (var reader = new System.IO.StreamReader(response.GetResponseStream()))
+                        string resultText;
+                        using (var responseStream = response.GetResponseStream())
                         {
-                            var jsonObj = JsonConvert.DeserializeObject<Dictionary<string, string>>(await reader.ReadToEndAsync());
-                            if (!jsonObj.ContainsKey("id"))
+                            using (var reader = new System.IO.StreamReader(responseStream))
                             {
-                                MessageAppended?.Invoke("response.Headers doesn't contain a key for \"id\"!");
-                                MessageAppended?.Invoke(await LogHttpWebResponse(response, true));
-                                Status = FileCreatorStatus.ErrorNeedRestart;
-                                return;
+                                resultText = await reader.ReadToEndAsync();
                             }
-                            Result= jsonObj["id"];
-                            MessageAppended?.Invoke($"Folder {name} ({Result}) created!");
-                            Status = FileCreatorStatus.Completed;
-                            return;
                         }
+                        var result = JsonConvert.DeserializeObject<temporaryClassForResponseBody>(resultText);
+                        if (result.incompleteSearch)
+                        {
+                            MessageAppended?.Invoke("Warning! This is an Incomplete Search");
+                            MyLogger.Log("Warning! This is an Incomplete Search");
+                        }
+                        FileListGot.Clear();
+                        foreach (var file in result.files)
+                        {
+                            FileListGot.Add(new Tuple<string, string, string>(file.id, file.name, file.mimeType));
+                        }
+                        NewFileListGot?.Invoke(FileListGot);
+                        if (result.nextPageToken == null)
+                        {
+                            Status = SearchStatus.Completed;
+                        }
+                        else
+                        {
+                            pageToken = result.nextPageToken;
+                            Status = SearchStatus.Paused;
+                        }
+                        return;
                     }
                     else
                     {
                         MessageAppended?.Invoke("Http response isn't OK!");
                         MessageAppended?.Invoke(await LogHttpWebResponse(response, true));
-                        Status = FileCreatorStatus.ErrorNeedRestart;
+                        Status = SearchStatus.ErrorNeedResume;
                         return;
                     }
                 }

@@ -96,7 +96,7 @@ namespace GoogleDrive.MyControls
             MyStackPanel SPcontent;
             Button BTNrefresh;
             CloudFileLabelPrototype LBselected = null;
-            CloudFile.SearchListGetter FoldersGetter,FilesGetter;
+            CloudFile.SearchUnderSpecificFolderListGetter FoldersGetter,FilesGetter;
             public int FolderDepth;
             public CloudFolderContentPanel(CloudFile _cloudFolder, int folderDepth)
             {

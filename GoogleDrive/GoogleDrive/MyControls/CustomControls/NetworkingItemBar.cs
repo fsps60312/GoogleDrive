@@ -65,7 +65,7 @@ namespace GoogleDrive.MyControls
             {
                 LBname = new MyLabel("");
                 LBname.SetBinding(MyLabel.TextProperty,new Xamarin.Forms.Binding("LBname"));
-                this.Children.Add(LBname, 1, 0);
+                this.Children.Add(new MyScrollView(ScrollOrientation.Horizontal) { Content = LBname }, 1, 0);
             }
             {
                 AIprogress = new MyActivityIndicator();

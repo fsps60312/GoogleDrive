@@ -94,15 +94,17 @@ namespace GoogleDrive
             var ans = new CloudFile(result.Id, result.Name, false, this);
             return ans;
         }
-        private SearchListGetter FilesGetter(bool isFolder)
+        private SearchUnderSpecificFolderListGetter FilesGetter(bool isFolder)
         {
             MyLogger.Assert(this.IsFolder);
-            return FilesGetter($"'{this.Id}' in parents and trashed != true and mimeType {(isFolder ? "=" : "!=")} '{Constants.FolderMimeType}'");
+            return FilesGetter($"trashed != true and mimeType {(isFolder ? "=" : "!=")} '{Constants.FolderMimeType}'");
         }
-        private SearchListGetter FilesGetter(string pattern)
+        private SearchUnderSpecificFolderListGetter FilesGetter(string pattern)
         {
             MyLogger.Assert(this.IsFolder);
-            return new SearchListGetter(this, pattern);
+            var getter= new SearchUnderSpecificFolderListGetter(this, pattern);
+            getter.MessageAppended += (log) => { MyLogger.Log($"SearchUnderSpecificFolderListGetter: {log}"); };
+            return getter;
         }
         #endregion
         #region PublicMethods
@@ -298,12 +300,12 @@ namespace GoogleDrive
             var ans = new CloudFile(folderCreator.Result, folderName, true, this);
             return ans;
         }
-        public SearchListGetter FoldersGetter()
+        public SearchUnderSpecificFolderListGetter FoldersGetter()
         {
             MyLogger.Assert(this.IsFolder);
             return FilesGetter(true);
         }
-        public SearchListGetter FilesGetter()
+        public SearchUnderSpecificFolderListGetter FilesGetter()
         {
             MyLogger.Assert(this.IsFolder);
             return FilesGetter(false);

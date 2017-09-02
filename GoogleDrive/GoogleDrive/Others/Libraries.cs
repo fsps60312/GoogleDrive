@@ -7,6 +7,51 @@ namespace GoogleDrive
 {
     class Libraries
     {
+        static Libraries()
+        {
+            MyLogger.AddTestMethod("Generate Guid String", new Func<Task>(async () =>
+             {
+                 var guid = Guid.NewGuid();
+                 string s = "";
+                 foreach(var b in guid.ToByteArray())
+                 {
+                     s += (char)b;
+                 }// s會變成亂碼
+                 await MyLogger.Alert($"{guid.ToByteArray().Length}\r\n{guid}\r\n{s}\r\n{guid}");
+                 // guid.ToString() 的形式： xxxxxxxx-xxxx-xxxx-xxxx-xxxx-xxxxxxxx (x是小寫英文or數字)
+             }));
+        }
+        public static int[] GetFailArray(string s)
+        {
+            int[] fail = new int[s.Length + 1];
+            fail[0] = fail[1] = 0;
+            for (int i = 1; i < s.Length; i++)
+            {
+                int f = fail[i];
+                while (f > 0 && s[f] != s[i]) f = fail[f];
+                fail[i + 1] = (s[f] == s[i] ? f + 1 : f);
+            }
+            return fail;
+        }
+        public static string GetNonsubstring_A_Z(byte[]data)
+        {
+            string ans;
+            while (new Func<string, bool>((str) =>
+               {
+                   var fail = GetFailArray(str);
+                   for (int i = 0, u = 0; i < data.Length; i++)
+                   {
+                       while (u > 0 && data[i] != (byte)str[u]) u = fail[u];
+                       if (data[i] == str[u])
+                       {
+                           ++u;
+                           if (u == str.Length) return true;
+                       }
+                   }
+                   return false;
+               })(ans = Guid.NewGuid().ToString())) ;
+            return ans;
+        }
         public static string ByteArrayToString(byte[] ba)
         {
             System.Text.StringBuilder hex = new System.Text.StringBuilder(ba.Length * 2);
@@ -17,44 +62,11 @@ namespace GoogleDrive
         public static async Task<string> GetSha256ForWindowsStorageFile(System.IO.Stream stream)
         {
             var streamLength = stream.Length;
-            //await MyLogger.Alert($"a {stream.Length}");
-            //long i = 0;
             var md5 = System.Security.Cryptography.MD5.Create();
             md5.Initialize();
             var hash = await Task.Run(new Func<byte[]>(() => { return md5.ComputeHash(stream); }));
-            //while (i< stream.Length)//Has Oplock issues
-            //{
-            //    var l = await stream.ReadAsync(buffer, 0, bufferLen);
-            //    i += l;
-            //}
-            //await MyLogger.Alert("b");
             if (stream.Length != streamLength) return null;
             return ByteArrayToString(hash);
-            ////NB: "file" is a "StorageFile" previously opened
-            ////in this example I use HashAlgorithmNames.Md5, you can replace it with HashAlgorithmName.Sha1, etc...
-
-            //var alg = Windows.Security.Cryptography.Core.HashAlgorithmProvider.OpenAlgorithm(Windows.Security.Cryptography.Core.HashAlgorithmNames.Md5);
-            //var stream = await windowsFile.OpenStreamForReadAsync();
-            //var inputStream = stream.AsInputStream();
-            //uint capacity = 100000000;
-            //Windows.Storage.Streams.Buffer buffer = new Windows.Storage.Streams.Buffer(capacity);
-            //var hash = alg.CreateHash();
-
-            //while (true)
-            //{
-            //    await inputStream.ReadAsync(buffer, capacity,Windows.Storage.Streams.InputStreamOptions.None);
-
-            //    if (buffer.Length > 0)
-            //        hash.Append(buffer);
-            //    else
-            //        break;
-            //}
-
-            //string hashText =Windows.Security.Cryptography.CryptographicBuffer.EncodeToHexString(hash.GetValueAndReset()).ToUpper();
-
-            //inputStream.Dispose();
-            //stream.Dispose();
-            //return hashText;
         }
         class temporaryClassForGetSha256ForCloudFileById
         {
@@ -62,7 +74,8 @@ namespace GoogleDrive
         }
         public static async Task<string> GetSha256ForCloudFileById(string id)
         {
-            var data = await (new RestRequests.FileGetter(id)).GetFileAsync();
+            string data = await (new RestRequests.FileGetter(id)).GetFileAsync();
+            if (data == null) return null;
             data = data.Substring(data.IndexOf("{"));
             //MyLogger.Log(data);
             var obj = Newtonsoft.Json.JsonConvert.DeserializeObject<temporaryClassForGetSha256ForCloudFileById>(data);
