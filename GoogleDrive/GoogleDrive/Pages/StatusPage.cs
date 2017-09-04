@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using GoogleDrive.MyControls;
 
-namespace GoogleDrive
+namespace GoogleDrive.Pages
 {
     class StatusPage:MyTabbedPage
     {

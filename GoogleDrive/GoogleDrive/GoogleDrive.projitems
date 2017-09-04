@@ -23,6 +23,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)CloudControllers\RestRequests.Downloader.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)CloudControllers\RestRequests.FileCreator.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)CloudControllers\RestRequests.FileGetter.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)CloudControllers\RestRequests.SearchListGetter.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)CloudControllers\RestRequests.Uploader.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)MyControls\CustomControls\BarsListPanel\BarsListPanel.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)MyControls\CustomControls\CloudFileExplorePanel.cs" />
@@ -37,6 +38,8 @@
     <Compile Include="$(MSBuildThisFileDirectory)MyControls\MyButton.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)MyControls\MyContentPage.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)MyControls\MyContentView.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)MyControls\MyEditor.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)MyControls\MyEntry.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)MyControls\MyGrid.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)MyControls\MyLabel.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)MyControls\MyProgressBar.cs" />
@@ -51,12 +54,14 @@
     <Compile Include="$(MSBuildThisFileDirectory)Pages\FileBrowsePage.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Pages\FileTransferPage.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Pages\FileVerifyPage.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Pages\HttpRequestPage.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Pages\LogPage.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Pages\MainPage.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Others\MyLogger.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)MyControls\MyStackPanel.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)CloudControllers\RestRequests.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Pages\StatusPage.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Pages\TestPage.cs" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="$(MSBuildThisFileDirectory)App.xaml">

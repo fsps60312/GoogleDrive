@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using Xamarin.Forms;
 using GoogleDrive.MyControls;
 
-namespace GoogleDrive
+namespace GoogleDrive.Pages
 {
     class FileBrowsePage:MyContentPage
     {

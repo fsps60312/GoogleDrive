@@ -4,7 +4,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Xamarin.Forms;
 
-namespace GoogleDrive
+namespace GoogleDrive.Pages
 {
     class MainPage:TabbedPage
     {
@@ -24,6 +24,10 @@ namespace GoogleDrive
                 this.Children.Add(new NavigationPage(PGfileTransfer) { Title = PGfileTransfer.Title });
                 //PGfileTransfer.Title = null;
             }
+            {
+                PGtest = new TestPage();
+                this.Children.Add(PGtest);
+            }
             //{
             //    this.Children.Add(new FileTransferPage { Title = "|", Icon = "StoreLogo" });
             //}
@@ -32,5 +36,6 @@ namespace GoogleDrive
         LogPage PGlog;
         FileBrowsePage PGfileBrowse;
         StatusPage PGfileTransfer;
+        TestPage PGtest;
     }
 }

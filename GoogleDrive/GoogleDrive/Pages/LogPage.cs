@@ -8,7 +8,7 @@ using GoogleDrive.MyControls.BarsListPanel;
 using System.ComponentModel;
 using System.Windows.Input;
 
-namespace GoogleDrive
+namespace GoogleDrive.Pages
 {
     class LogPage:MyContentPage
     {

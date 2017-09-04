@@ -35,6 +35,56 @@ namespace GoogleDrive
                 while ((tmp = await GetNextPageAsync()) != null) ans.AddRange(tmp);
                 return ans;
             }
+            int pageNumber;
+            public async Task<string> GetNextPageWithFieldsAsync(string fields, int pageSize = 100)
+            {
+                Status = Networker.NetworkStatus.Networking;
+                if (searchListGetter == null)
+                {
+                    searchListGetter = new RestRequests.SearchListGetter(searchPattern);
+                    searchListGetter.MessageAppended += (msg) => { MessageAppended?.Invoke($"[Rest]{msg}"); };
+                    pageNumber = 0;
+                }
+                MessageAppended?.Invoke($"Getting page #{++pageNumber}");
+                if (searchListGetter.Status == RestRequests.SearchListGetter.SearchStatus.Completed)
+                {
+                    Status = Networker.NetworkStatus.Completed;
+                    return null;
+                }
+                searchListGetter.PageSize = pageSize;
+                int timeToWait = 500;
+                index_tryAgain:;
+                await searchListGetter.GetNextPageAsync(fields);
+                if (searchListGetter.Status == RestRequests.SearchListGetter.SearchStatus.Paused)
+                {
+                    Status = Networker.NetworkStatus.Paused;
+                    return searchListGetter.NextPageString;
+                }
+                else if (searchListGetter.Status == RestRequests.SearchListGetter.SearchStatus.Completed)
+                {
+                    Status = Networker.NetworkStatus.Completed;
+                    return searchListGetter.NextPageString;
+                }
+                else
+                {
+                    MessageAppended?.Invoke($"searchListGetter.Status: {searchListGetter.Status}");
+                    if (searchListGetter.Status == RestRequests.SearchListGetter.SearchStatus.ErrorNeedResume)
+                    {
+                        if (timeToWait > Constants.MaxTimeToWait)
+                        {
+                            Status = Networker.NetworkStatus.ErrorNeedRestart;
+                            return null;
+                        }
+                        MessageAppended?.Invoke($"Waiting for {timeToWait} milisecs and try again...");
+                        await Task.Delay(timeToWait);
+                        timeToWait *= 2;
+                        goto index_tryAgain;
+                    }
+                    Status = Networker.NetworkStatus.ErrorNeedRestart;
+                    return null;
+                }
+            }
+
             public async Task<List<CloudFile>> GetNextPageAsync(int pageSize = 100)
             {
                 Status = Networker.NetworkStatus.Networking;

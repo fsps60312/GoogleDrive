@@ -26,6 +26,10 @@ namespace GoogleDrive.MyControls.BarsListPanel
             get { return treap.itemHeight; }
             set { treap.itemHeight = value; }
         }
+        public Treap<DataType> Treap
+        {
+            get { return treap; }
+        }
         Treap<DataType> treap = new Treap<DataType>();
         MyAbsoluteLayout ALmain;
         protected MyScrollView SVmain;
@@ -64,8 +68,8 @@ namespace GoogleDrive.MyControls.BarsListPanel
         }
         public void PushFront(DataType data)
         {
-            var o=treap.Insert(data, 0);
-            RegisterData(o,data);
+            var o = treap.Insert(data, 0);
+            RegisterData(o, data);
             OnTreapLayoutChanged();
         }
         public void PushBack(DataType data)

@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using System.Linq;
 using Xamarin.Forms;
 
-namespace GoogleDrive
+namespace GoogleDrive.Pages
 {
     class FileTransferPage:MyContentPage
     {

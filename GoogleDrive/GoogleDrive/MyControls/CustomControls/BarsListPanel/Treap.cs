@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 
 namespace GoogleDrive.MyControls.BarsListPanel
 {
@@ -30,6 +31,17 @@ namespace GoogleDrive.MyControls.BarsListPanel
                      await (o.data as MyDisposable).OnDisposed();
                  }));
             }
+        }
+        public List<DataType> ToList()
+        {
+            var list = new List<DataType>();
+            lock (root)
+            {
+                this.root?.AddToListRecursively(ref list);
+            }
+            MyLogger.Assert(list.Count >= 1);
+            list.RemoveAt(list.Count - 1);
+            return list;
         }
         public TreapNode Insert(DataType data, int position)
         {

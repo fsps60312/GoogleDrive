@@ -6,7 +6,7 @@ using Xamarin.Forms;
 using System.Threading.Tasks;
 using System.Linq;
 
-namespace GoogleDrive
+namespace GoogleDrive.Pages
 {
     class FileVerifyPage:MyContentPage
     {

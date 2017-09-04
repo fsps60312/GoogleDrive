@@ -1,5 +1,5 @@
 ﻿using System;
-using System.Threading.Tasks;
+using System.Collections.Generic;
 
 namespace GoogleDrive.MyControls.BarsListPanel
 {
@@ -78,6 +78,12 @@ namespace GoogleDrive.MyControls.BarsListPanel
                 PutDown(r);
                 animationStartTimeTag = DateTime.MinValue;
                 yOffsetTag = 0;
+            }
+            public void AddToListRecursively(ref List<DataType>list)
+            {
+                this.l?.AddToListRecursively(ref list);
+                list.Add(this.data);
+                this.r?.AddToListRecursively(ref list);
             }
             public int QueryLowerBound(double targetY)
             {

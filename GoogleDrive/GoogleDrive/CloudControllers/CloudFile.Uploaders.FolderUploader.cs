@@ -72,9 +72,10 @@ namespace GoogleDrive
                                             subTasks.Add(folderUploader);
                                         }
                                     }
-                                    long currentProgress = 0, totalProgress = subTasks.Count;
+                                    long currentProgress = 1, totalProgress = subTasks.Count+1;
                                     OnProgressChanged(currentProgress, totalProgress);
-                                    TotalProgressChanged?.Invoke(subTasks.Count);
+                                    CurrentProgressChanged?.Invoke(1);
+                                    TotalProgressChanged?.Invoke(subTasks.Count + 1);
                                     Func<Networker, Task> action;
                                     if (Status == NetworkStatus.Paused)
                                     {
@@ -111,16 +112,16 @@ namespace GoogleDrive
                                                 var fu = st as CloudFile.Uploaders.FolderUploader;
                                                 fu.CurrentProgressChanged += currentProgressChangedEventHandler;
                                                 fu.TotalProgressChanged += totalProgressChangedEventHandler;
-                                            }
-                                            await action(st);
-                                            if (st.GetType() == typeof(CloudFile.Uploaders.FolderUploader))
-                                            {
-                                                var fu = st as CloudFile.Uploaders.FolderUploader;
+                                                await action(st);
                                                 fu.CurrentProgressChanged -= currentProgressChangedEventHandler;
                                                 fu.TotalProgressChanged -= totalProgressChangedEventHandler;
                                             }
-                                            CurrentProgressChanged?.Invoke(1);
-                                            OnProgressChanged(++currentProgress, totalProgress);
+                                            else
+                                            {
+                                                await action(st);
+                                                CurrentProgressChanged?.Invoke(1);
+                                                OnProgressChanged(++currentProgress, totalProgress);
+                                            }
                                         });
                                     }
                                     await Task.WhenAll(tasks);

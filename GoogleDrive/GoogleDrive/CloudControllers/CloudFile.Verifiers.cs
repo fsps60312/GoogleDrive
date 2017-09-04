@@ -94,11 +94,11 @@ namespace GoogleDrive
                 }
                 CloudFile cloudFolder;
                 Windows.Storage.StorageFolder windowsFolder;
-                Dictionary<string, CloudFile> cloudSubFolders = null, cloudSubFiles = null;
+                Dictionary<string, CloudFile> cloudSubFolders = null;
+                Dictionary<string, string> cloudSubFiles = null;
                 //Dictionary<string, Windows.Storage.StorageFolder> localSubFolders = null, localSubFiles = null;
                 private async Task<bool> GetCloudSubFolders()
                 {
-                    if (cloudSubFolders != null) return true;
                     cloudSubFolders = new Dictionary<string, CloudFile>();
                     var cloudFoldersGetter = cloudFolder.FoldersGetter();
                     cloudFoldersGetter.MessageAppended += (msg) => { OnMessageAppended($"[cloudFoldersGetter]{msg}"); };
@@ -131,32 +131,45 @@ namespace GoogleDrive
                     }
                     return true;
                 }
+                class temporaryClassForVerifySubfiles
+                {
+                    public string nextPageToken;
+                    public bool incompleteSearch;
+                    public class temporaryClassForVerifySubfilesFilesList
+                    {
+                        public string name, md5Checksum;
+                    }
+                    public temporaryClassForVerifySubfilesFilesList[] files;
+                }
                 private async Task<bool> GetCloudSubFiles()
                 {
-                    if (cloudSubFiles != null) return true;
-                    cloudSubFiles = new Dictionary<string, CloudFile>();
+                    cloudSubFiles = new Dictionary<string, string>();
                     var cloudFilesGetter = cloudFolder.FilesGetter();
                     cloudFilesGetter.MessageAppended += (msg) => { OnMessageAppended($"[cloudFilesGetter]{msg}"); };
-                    var list = await cloudFilesGetter.GetNextPageAsync();
+                    //MyLogger.Log(str);
+                    //MyLogger.Log($"{Newtonsoft.Json.JsonConvert.DeserializeObject<temporaryClassForVerifySubfiles>(str)}");
+                    //MyLogger.Log($"{Newtonsoft.Json.JsonConvert.DeserializeObject<temporaryClassForVerifySubfiles>(str).files}");
                     if (cloudFilesGetter.Status == NetworkStatus.ErrorNeedRestart)
                     {
                         OnMessageAppended($"Failed to get next page");
                         cloudSubFiles = null;
                         return false;
                     }
-                    while (list != null)
+                    var str =await cloudFilesGetter.GetNextPageWithFieldsAsync("nextPageToken,incompleteSearch,files(name,md5Checksum)");
+                    while (str != null)
                     {
+                        var list = Newtonsoft.Json.JsonConvert.DeserializeObject<temporaryClassForVerifySubfiles>(str).files;
                         foreach (var f in list)
                         {
-                            if (cloudSubFiles.ContainsKey(f.Name))
+                            if (cloudSubFiles.ContainsKey(f.name))
                             {
-                                OnMessageAppended($"Cloud File Name duplicated: {f.Name}");
+                                OnMessageAppended($"Cloud File Name duplicated: {f.name}");
                                 cloudSubFiles = null;
                                 return false;
                             }
-                            cloudSubFiles.Add(f.Name, f);
+                            cloudSubFiles.Add(f.name, f.md5Checksum);
                         }
-                        list = await cloudFilesGetter.GetNextPageAsync();
+                        str = await cloudFilesGetter.GetNextPageWithFieldsAsync("nextPageToken,incompleteSearch,files(name,md5Checksum)");
                         if (cloudFilesGetter.Status == NetworkStatus.ErrorNeedRestart)
                         {
                             OnMessageAppended($"Failed to get next page");
@@ -201,9 +214,6 @@ namespace GoogleDrive
                         }
                         MyLogger.Assert(localSubFolders.Count == 0);
                     }
-                    OnProgressChanged(currentProgress, totalProgress += folderVerifiers.Count);
-                    TotalProgressChanged?.Invoke(folderVerifiers.Count);
-                    var fileVerifiers = new List<Tuple<CloudFile, Windows.Storage.StorageFile>>();
                     {
                         if (!await GetCloudSubFiles()) return NetworkStatus.ErrorNeedRestart;
                         Dictionary<string, Windows.Storage.StorageFile> localSubFiles = new Dictionary<string, Windows.Storage.StorageFile>();
@@ -223,23 +233,39 @@ namespace GoogleDrive
                                 OnMessageAppended($"Local File doesn't exist: {p.Key}");
                                 return NetworkStatus.ErrorNeedRestart;
                             }
-                            fileVerifiers.Add(new Tuple<CloudFile, Windows.Storage.StorageFile>(p.Value, localSubFiles[p.Key]));
+                        }
+                        OnProgressChanged(++currentProgress, totalProgress += cloudSubFiles.Count);
+                        CurrentProgressChanged?.Invoke(1);
+                        TotalProgressChanged?.Invoke(cloudSubFiles.Count);
+                        OnMessageAppended("Verifying subfiles...");
+                        int filesVerified = 0;
+                        foreach (var p in cloudSubFiles)
+                        {
+                            var localFile = localSubFiles[p.Key];
+                            var stream = await localFile.OpenStreamForReadAsync();
+                            var localMd5 =await Libraries.GetSha256ForWindowsStorageFile(stream);
+                            stream.Dispose();
+                            if (localMd5!=p.Value||p.Value==null)
+                            {
+                                OnMessageAppended($"{p.Key} content not consistent, Cloud: {p.Value}, Local: {localMd5}");
+                                CurrentProgressChanged?.Invoke(-filesVerified-1);
+                                TotalProgressChanged?.Invoke(-cloudSubFiles.Count);
+                                return NetworkStatus.ErrorNeedRestart;
+                            }
+                            OnProgressChanged(++currentProgress, totalProgress);
+                            CurrentProgressChanged?.Invoke(1);
+                            ++filesVerified;
                             localSubFiles.Remove(p.Key);
                         }
+                        OnMessageAppended("Subfiles verified.");
                         MyLogger.Assert(localSubFiles.Count == 0);
                     }
-                    OnProgressChanged(++currentProgress, totalProgress += fileVerifiers.Count);
-                    TotalProgressChanged?.Invoke(fileVerifiers.Count);
-                    CurrentProgressChanged?.Invoke(1);
+                    OnProgressChanged(currentProgress, totalProgress += folderVerifiers.Count);
+                    TotalProgressChanged?.Invoke(folderVerifiers.Count);
                     ReleaseSemaphoreSlim();
+                    OnMessageAppended("Waiting for subfolders to be verified...");
                     try
                     {
-                        await Task.WhenAll(fileVerifiers.Select(async (tuple) =>
-                        {
-                            await new Verifiers.FileVerifier(tuple.Item1, tuple.Item2).StartUntilCompletedAsync();
-                            CurrentProgressChanged?.Invoke(1);
-                            OnProgressChanged(++currentProgress, totalProgress);
-                        }));
                         await Task.WhenAll(folderVerifiers.Select(async (tuple) =>
                         {
                             var totalProgressChangedEventHandler = new TotalProgressChangedEventHandler((difference) =>
@@ -249,7 +275,7 @@ namespace GoogleDrive
                               });
                             var currentProgressChangedEventHandler = new TotalProgressChangedEventHandler((difference) =>
                               {
-                                  MyLogger.Assert(difference == 1);
+                                  //MyLogger.Assert(difference == 1);
                                   OnProgressChanged(currentProgress += difference, totalProgress);
                                   CurrentProgressChanged?.Invoke(difference);
                               });

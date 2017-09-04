@@ -254,6 +254,7 @@ namespace GoogleDrive
                     ans.AddRange(fileContent);
                 }
                 ans.AddRange(Encoding.UTF8.GetBytes($"\n--{seperateString}--"));
+                MyLogger.Log(Encoding.UTF8.GetString(ans.ToArray()));
                 return new Tuple<string, byte[]>(seperateString, ans.ToArray());
             }
             private async Task DoMultipartUploadAsync()
