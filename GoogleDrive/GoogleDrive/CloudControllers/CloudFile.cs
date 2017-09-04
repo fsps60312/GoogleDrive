@@ -313,7 +313,7 @@ namespace GoogleDrive
         public async Task<CloudFile> GetFolderAsync(string folderName, bool assertSingleFolder = true)
         {
             MyLogger.Assert(this.IsFolder);
-            var ans = await FilesGetter($"'{this.Id}' in parents and trashed != true and mimeType = '{Constants.FolderMimeType}' and name = '{folderName}'").GetNextPageAsync(2);
+            var ans = await FilesGetter($"'{this.Id}' in parents and trashed != true and mimeType = '{Constants.FolderMimeType}' and name = '{folderName.Replace("'","\\'")}'").GetNextPageAsync(2);
             if (ans.Count == 0) return null;
             if (assertSingleFolder) MyLogger.Assert(ans.Count == 1);
             return ans[0];

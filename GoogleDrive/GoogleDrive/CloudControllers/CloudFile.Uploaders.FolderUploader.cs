@@ -40,7 +40,7 @@ namespace GoogleDrive
                                     Status = NetworkStatus.Networking;
                                     if (UploadedCloudFolder == null)
                                     {
-                                        var fc = new Modifiers.FolderCreator(cloudFolder, windowsFolder.Name);
+                                        var fc = new Modifiers.FolderCreator(cloudFolder, this.windowsFolder.Name);
                                         var messageAppendedEventHandler = new MessageAppendedEventHandler((msg) => { OnMessageAppended($"[FC]{msg}"); });
                                         OnMessageAppended("Creating folder...");
                                         fc.MessageAppended += messageAppendedEventHandler;
@@ -55,27 +55,27 @@ namespace GoogleDrive
                                         OnProgressChanged(0, 0);
                                     }
                                     //NetworkingCount--;
-                                    var windowsFolders = await windowsFolder.GetFilesAsync();
+                                    var windowsFiles = await this.windowsFolder.GetFilesAsync();
                                     lock (subTasks)
                                     {
-                                        foreach (var f in windowsFolders)
+                                        foreach (var f in windowsFiles)
                                         {
                                             subTasks.Add(new FileUploader(UploadedCloudFolder, f, f.Name));
                                         }
                                     }
-                                    var windowsFiles = await windowsFolder.GetFoldersAsync();
+                                    var windowsFolders = await this.windowsFolder.GetFoldersAsync();
                                     lock (subTasks)
                                     {
-                                        foreach (var f in windowsFiles)
+                                        foreach (var f in windowsFolders)
                                         {
                                             var folderUploader = new FolderUploader(UploadedCloudFolder, f);
                                             subTasks.Add(folderUploader);
                                         }
                                     }
-                                    long currentProgress = 1, totalProgress = subTasks.Count+1;
+                                    long currentProgress = 1, totalProgress = windowsFiles.Count+1;
                                     OnProgressChanged(currentProgress, totalProgress);
                                     CurrentProgressChanged?.Invoke(1);
-                                    TotalProgressChanged?.Invoke(subTasks.Count + 1);
+                                    TotalProgressChanged?.Invoke(windowsFiles.Count + 1);
                                     Func<Networker, Task> action;
                                     if (Status == NetworkStatus.Paused)
                                     {
