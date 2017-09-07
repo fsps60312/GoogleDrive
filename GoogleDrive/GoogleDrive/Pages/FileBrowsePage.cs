@@ -5,6 +5,7 @@ using System.IO;
 using System.Threading.Tasks;
 using Xamarin.Forms;
 using GoogleDrive.MyControls;
+using System.Linq;
 
 namespace GoogleDrive.Pages
 {
@@ -81,7 +82,7 @@ namespace GoogleDrive.Pages
                             var fileList = await picker.PickMultipleFilesAsync();
                             if (fileList != null)
                             {
-                                foreach (var file in fileList)
+                                await Task.WhenAll(fileList.Select(async (file) =>
                                 {
                                     var containingCloudFolder = fileSelected;
                                     MyLogger.Log($"File uploading...\r\nName: {file.Name}\r\nIn: {containingCloudFolder.FullName}\r\nLocal: {file.Path}");
@@ -94,7 +95,7 @@ namespace GoogleDrive.Pages
                                     {
                                         MyLogger.Log($"File upload succeeded!\r\nName: {uploadedFile.Name}\r\nIn: {containingCloudFolder.FullName}\r\nID: {uploadedFile.Id}\r\nLocal: {file.Path}");
                                     }
-                                }
+                                }));
                             }
                             MyLogger.Log("All done!");
                         }

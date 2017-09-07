@@ -135,7 +135,10 @@ namespace GoogleDrive.Pages
                     this.Children.Add(EDresponse, 1, 3);
                 }
             }
-            private string BodyTextToSend() { return EDbody.Text.Replace("\r\n", "\n"); }
+            private string BodyTextToSend()
+            {
+                return EDbody.Text.Replace('\r', '\n');
+            }
             private async Task SendHttpRequest()
             {
                 string url = ETurl.Text;
@@ -164,6 +167,7 @@ namespace GoogleDrive.Pages
                     using (var stream = await request.GetRequestStreamAsync())
                     {
                         var bytes = Encoding.UTF8.GetBytes(BodyTextToSend());
+                        //MyLogger.Log(Encoding.UTF8.GetString(bytes).Replace("\n", "\\n").Replace("\r", "\\r").Replace("\t", "\\t")); //換行為甚麼是\r啦 >_<
                         await stream.WriteAsync(bytes, 0, bytes.Length);
                     }
                 }
