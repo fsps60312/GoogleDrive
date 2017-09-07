@@ -7,10 +7,15 @@ namespace GoogleDrive.Pages
 {
     class StatusPage:MyTabbedPage
     {
+        EventHandler initializeThis;
         public StatusPage():base("Status")
         {
-            this.Children.Add(new FileTransferPage());
-            this.Children.Add(new FileVerifyPage());
+            this.Appearing += (initializeThis = new EventHandler(delegate
+                {
+                    this.Appearing -= initializeThis;
+                    this.Children.Add(new FileTransferPage());
+                    this.Children.Add(new FileVerifyPage());
+                }));
         }
     }
 }

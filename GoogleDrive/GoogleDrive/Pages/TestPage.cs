@@ -7,9 +7,15 @@ namespace GoogleDrive.Pages
 {
     class TestPage:MyTabbedPage
     {
+        EventHandler initializeThis;
         public TestPage():base("Test Page")
         {
-            this.Children.Add(new HttpRequestPage());
+            this.Appearing += (initializeThis = new EventHandler(delegate
+            {
+                this.Appearing -= initializeThis;
+                this.Children.Add(new HttpRequestPage());
+                this.Children.Add(new WebViewPage());
+            }));
         }
     }
 }

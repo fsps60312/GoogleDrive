@@ -239,10 +239,15 @@ namespace GoogleDrive.Pages
         //        this.Content = SLmain;
         //    }
         //}
+        EventHandler initializeThis;
         public LogPage():base("Log")
         {
-            InitializeControls();
-            RegisterEvents();
+            this.Appearing += (initializeThis = new EventHandler(delegate
+            {
+                this.Appearing -= initializeThis;
+                InitializeControls();
+                RegisterEvents();
+            }));
         }
         private void RegisterEvents()
         {

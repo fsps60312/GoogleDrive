@@ -48,13 +48,14 @@
     <Compile Include="$(MSBuildThisFileDirectory)MyControls\MySwitch.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)MyControls\MyTabbedPage.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)MyControls\MyToolbarItem.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)MyControls\MyWebView.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Others\DoubleExtensions.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)CloudControllers\Drive.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Others\Libraries.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Pages\FileBrowsePage.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)Pages\FileTransferPage.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)Pages\FileVerifyPage.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)Pages\HttpRequestPage.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Pages\StatusPage\FileTransferPage.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Pages\StatusPage\FileVerifyPage.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Pages\TestPage\HttpRequestPage.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Pages\LogPage.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Pages\MainPage.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Others\MyLogger.cs" />
@@ -62,6 +63,7 @@
     <Compile Include="$(MSBuildThisFileDirectory)CloudControllers\RestRequests.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Pages\StatusPage.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Pages\TestPage.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)Pages\TestPage\WebViewPage.cs" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="$(MSBuildThisFileDirectory)App.xaml">
@@ -71,5 +73,7 @@
   </ItemGroup>
   <ItemGroup>
     <Folder Include="$(MSBuildThisFileDirectory)MyControls\CustomControls\BarsListPanel\" />
+    <Folder Include="$(MSBuildThisFileDirectory)Pages\TestPage\" />
+    <Folder Include="$(MSBuildThisFileDirectory)Pages\StatusPage\" />
   </ItemGroup>
 </Project>

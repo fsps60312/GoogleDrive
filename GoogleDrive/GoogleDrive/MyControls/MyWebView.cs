@@ -5,11 +5,7 @@ using Xamarin.Forms;
 
 namespace GoogleDrive.MyControls
 {
-    class FooClass
+    class MyWebView : WebView
     {
-        void FooFunction()
-        {
-            WebView v = new WebView();
-        }
     }
 }
